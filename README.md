@@ -1,6 +1,6 @@
 # MM Emergency Response
 
-**Version 1.4.0.** Built on the 1.3.0 GOLD build — the first fully verified
+**Version 1.4.0.** Built on the 1.3.0 build — the first fully verified
 release, with every subsystem tested live and confirmed working end to end —
 plus chat tags, an MIT licence, and the fixes from a full security audit.
 See `CHANGELOG.md` and `SECURITY.md`.
