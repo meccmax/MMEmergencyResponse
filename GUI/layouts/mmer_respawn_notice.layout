@@ -1,0 +1,14 @@
+TextWidgetClass mmer_respawn_notice {
+ ignorepointer 1
+ position 0.25 0.80
+ size 0.50 0.05
+ hexactpos 0
+ vexactpos 0
+ hexactsize 0
+ vexactsize 0
+ text "A responder is on the way - respawning is held for now."
+ color 0.88 0.29 0.29 1
+ "text halign" center
+ "text valign" center
+ priority 100
+}

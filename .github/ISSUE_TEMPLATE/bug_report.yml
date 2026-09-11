@@ -1,0 +1,96 @@
+name: Bug report
+description: Something in the mod doesn't work as described
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before you paste anything: **`config.json` contains your live Discord
+        webhook URL.** Replace it with `"discordWebhookUrl": "REDACTED"` before
+        posting. Anyone who can read that URL can post to your channel.
+
+        Steam64 IDs in `adminIds`/`teamIds` and in `emergency.log` identify real
+        players. Redact them if that matters to you.
+
+  - type: input
+    id: version
+    attributes:
+      label: Mod version
+      description: The `version` line in `config.cpp`, or the release you downloaded.
+      placeholder: "1.4.0"
+    validations:
+      required: true
+
+  - type: input
+    id: dayz
+    attributes:
+      label: DayZ version and map
+      placeholder: "1.29.163451 — Deer Isle"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: If it only happens sometimes, say roughly how often.
+      placeholder: |
+        1. Go unconscious
+        2. Press CALL FOR HELP
+        3. Another player presses K
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: emergency.log
+      description: >
+        From `$profile:MMEmergency/emergency.log` on the server. The lines around
+        the problem are usually enough — the whole file is fine too. This is the
+        single most useful thing you can attach.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: config.json (webhook URL redacted)
+      description: From `$profile:MMEmergency/config.json`. Redact the webhook URL first.
+      render: json
+    validations:
+      required: true
+
+  - type: textarea
+    id: rpt
+    attributes:
+      label: Script errors from the server RPT
+      description: >
+        Any `Can't compile` or error lines mentioning MMER. Leave blank if the
+        server started cleanly.
+      render: text
+
+  - type: textarea
+    id: mods
+    attributes:
+      label: Other mods loaded
+      description: Especially anything that also touches chat, the respawn menu, or PlayerBase.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed the Discord webhook URL from anything I pasted
+          required: true
+        - label: The server started without script errors (or I attached them above)
+          required: true

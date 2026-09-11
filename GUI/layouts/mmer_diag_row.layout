@@ -1,0 +1,36 @@
+FrameWidgetClass mmer_diag_row {
+ position 0 0
+ size 1 22
+ hexactpos 0
+ vexactpos 0
+ hexactsize 0
+ vexactsize 1
+ {
+  TextWidgetClass mmer_diag_label {
+   ignorepointer 1
+   position 0.02 0
+   size 0.6 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   text "Label"
+   color 0.6 0.6 0.6 1
+   "text halign" left
+   "text valign" center
+  }
+  TextWidgetClass mmer_diag_value {
+   ignorepointer 1
+   position 0.62 0
+   size 0.36 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   text "--"
+   color 0.87 0.87 0.87 1
+   "text halign" right
+   "text valign" center
+  }
+ }
+}

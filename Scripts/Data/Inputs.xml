@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<modded_inputs>
+    <inputs>
+        <actions>
+            <input name="UAMMEROpenPanel" loc="STR_MMER_INPUT_OPEN_PANEL" />
+        </actions>
+        <sorting name="mmemergency" loc="STR_MMER_INPUT_GROUP">
+            <input name="UAMMEROpenPanel" />
+        </sorting>
+    </inputs>
+    <preset>
+        <input name="UAMMEROpenPanel">
+            <btn name="kK"/>
+        </input>
+    </preset>
+</modded_inputs>

@@ -1,0 +1,30 @@
+# Build output ------------------------------------------------------------
+*.pbo
+*.bisign
+*.biprivatekey
+*.bikey
+build/
+dist/
+addons/
+temp/
+*.log
+
+# Live server state -------------------------------------------------------
+# These are written at runtime into $profile:MMEmergency/ and contain real
+# player Steam64s and a live Discord webhook URL. They must never be
+# committed. Data/config.example.json is the template that ships.
+config.json
+active.json
+archive.json
+emergency.log
+MMEmergency/
+!Data/config.example.json
+
+# Editor / OS -------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*~
+Thumbs.db
+desktop.ini
+.DS_Store

@@ -1,0 +1,11 @@
+*.c
+*.xml
+*.layout
+*.csv
+*.json
+*.txt
+*.paa
+*.edds
+*.ogg
+*.wss
+*.imageset

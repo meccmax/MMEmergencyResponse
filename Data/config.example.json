@@ -1,0 +1,84 @@
+{
+    "configVersion": 1,
+    "enabled": 1,
+    "teamName": "MEDEVAC",
+    "panelTitle": "MM Emergency Response",
+    "serverLogo": "",
+
+    "adminIds": [
+        "76561198000000000"
+    ],
+    "teamIds": [],
+
+    "requireUnconscious": 1,
+    "callCooldownSeconds": 300,
+    "callExpireMinutes": 25,
+    "buttonX": 0.5,
+    "buttonY": 0.78,
+    "buttonScale": 1.0,
+    "autoCloseOnRevive": 1,
+    "maxActiveCallsPerMedic": 1,
+    "showPatientNames": 1,
+    "refreshIntervalSeconds": 5,
+
+    "markerMode": 0,
+    "markerDurationSeconds": 900,
+    "markerIcon": "Medic",
+    "markerColor": "0xFFE04B4B",
+
+    "blockRespawnDuringCall": 1,
+    "blockRespawnOnlyWhenClaimed": 1,
+    "respawnBlockMaxSeconds": 900,
+
+    "restartTimesUTC": ["01:00", "07:00", "13:00", "19:00"],
+    "stabilizeMinutesBefore": 5,
+    "stabilizeStopBleeding": 1,
+    "stabilizeWakeUp": 1,
+    "stabilizeBloodFloor": 3500.0,
+    "stabilizeCloseCalls": 1,
+
+    "soundIncoming": "",
+    "soundFatal": "",
+    "soundVolume": 0.7,
+
+    "discordWebhookUrl": "",
+    "discordOnNew": 1,
+    "discordOnAccept": 1,
+    "discordOnComplete": 1,
+    "discordOnDeath": 1,
+    "discordOnCancel": 1,
+    "discordUsername": "MEDEVAC Dispatch",
+    "discordTestOnStart": 1,
+
+    "chatTagEnabled": 1,
+    "chatTagText": "[MEDEVAC]",
+    "chatTagColor": "0xFF4BE07A",
+    "chatTagAdminText": "[MEDEVAC CMD]",
+    "chatTagAdminColor": "0xFFE0A94B",
+
+    "archiveEnabled": 1,
+    "archiveMaxEntries": 500,
+    "archivePageSize": 25,
+
+    "terjeEnabled": 1,
+    "diagnostics": [
+        { "id": "vanilla:blood",       "label": "Blood",         "unit": "",  "scale": 1.0, "decimals": 0, "warnAbove": -1,   "warnBelow": 4000 },
+        { "id": "vanilla:health",      "label": "Health",        "unit": "",  "scale": 1.0, "decimals": 0, "warnAbove": -1,   "warnBelow": 50 },
+        { "id": "vanilla:shock",       "label": "Shock",         "unit": "",  "scale": 1.0, "decimals": 0, "warnAbove": -1,   "warnBelow": 40 },
+        { "id": "vanilla:bleeding",    "label": "Bleed sources", "unit": "",  "scale": 1.0, "decimals": 0, "warnAbove": 0,    "warnBelow": -1 },
+        { "id": "vanilla:energy",      "label": "Energy",        "unit": "",  "scale": 1.0, "decimals": 0, "warnAbove": -1,   "warnBelow": 600 },
+        { "id": "vanilla:water",       "label": "Water",         "unit": "",  "scale": 1.0, "decimals": 0, "warnAbove": -1,   "warnBelow": 600 },
+
+        { "id": "terje:hemostatic",    "label": "Hemostatic",    "unit": "",  "scale": 1.0, "decimals": 2, "warnAbove": -1,   "warnBelow": -1 },
+        { "id": "terje:antibiotics",   "label": "Antibiotics",   "unit": "",  "scale": 1.0, "decimals": 2, "warnAbove": -1,   "warnBelow": -1 },
+        { "id": "terje:painkiller",    "label": "Painkillers",   "unit": "",  "scale": 1.0, "decimals": 2, "warnAbove": -1,   "warnBelow": -1 },
+        { "id": "terje:pain",          "label": "Pain",          "unit": "",  "scale": 1.0, "decimals": 2, "warnAbove": 0.5,  "warnBelow": -1 },
+        { "id": "terje:sepsis",        "label": "Sepsis",        "unit": "",  "scale": 1.0, "decimals": 2, "warnAbove": 0.01, "warnBelow": -1 },
+        { "id": "terje:zvirus",        "label": "Z-Virus",       "unit": "",  "scale": 1.0, "decimals": 2, "warnAbove": 0.01, "warnBelow": -1 },
+        { "id": "terje:influenza",     "label": "Influenza",     "unit": "",  "scale": 1.0, "decimals": 2, "warnAbove": 0.01, "warnBelow": -1 },
+        { "id": "terje:radiation",     "label": "Radiation",     "unit": "",  "scale": 1.0, "decimals": 2, "warnAbove": 0.10, "warnBelow": -1 },
+        { "id": "terje:contusion",     "label": "Contusion",     "unit": "",  "scale": 1.0, "decimals": 2, "warnAbove": 0.01, "warnBelow": -1 },
+        { "id": "terje:hematoma",      "label": "Hematoma",      "unit": "",  "scale": 1.0, "decimals": 2, "warnAbove": 0.01, "warnBelow": -1 },
+        { "id": "terje:bulletHit",     "label": "Retained round","unit": "",  "scale": 1.0, "decimals": 0, "warnAbove": 0.5,  "warnBelow": -1 }
+    ]
+}

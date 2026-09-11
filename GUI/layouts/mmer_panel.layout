@@ -1,0 +1,284 @@
+FrameWidgetClass mmer_panel_root {
+ position 0 0
+ size 1 1
+ hexactpos 0
+ vexactpos 0
+ hexactsize 0
+ vexactsize 0
+ {
+  ImageWidgetClass mmer_window {
+   position 0.14 0.10
+   size 0.72 0.80
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   color 0.07 0.07 0.08 0.97
+   {
+    TextWidgetClass mmer_title {
+     ignorepointer 1
+     position 0.02 0.02
+     size 0.5 0.05
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     text "MEDEVAC DISPATCH"
+     color 0.88 0.29 0.29 1
+     "text halign" left
+     "text valign" center
+    }
+    TextWidgetClass mmer_subtitle {
+     ignorepointer 1
+     position 0.02 0.07
+     size 0.5 0.04
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     text "0 open call(s)"
+     color 0.6 0.6 0.6 1
+     "text halign" left
+     "text valign" center
+    }
+
+    ImageWidgetClass mmer_list_bg {
+     position 0.02 0.12
+     size 0.45 0.70
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.03 0.03 0.04 0.9
+     {
+      ScrollWidgetClass mmer_list_scroll {
+       position 0.01 0.02
+       size 0.98 0.96
+       hexactpos 0
+       vexactpos 0
+       hexactsize 0
+       vexactsize 0
+       "Scrollbar V" 1
+       {
+        WrapSpacerWidgetClass mmer_list {
+         position 0 0
+         size 1 0
+         hexactpos 0
+         vexactpos 0
+         hexactsize 0
+         "Size To Content V" 1
+        }
+       }
+      }
+      TextWidgetClass mmer_empty {
+       ignorepointer 1
+       position 0 0.45
+       size 1 0.08
+       hexactpos 0
+       vexactpos 0
+       hexactsize 0
+       vexactsize 0
+       text "No active calls."
+       color 0.45 0.45 0.45 1
+       "text halign" center
+       "text valign" center
+      }
+     }
+    }
+
+    ImageWidgetClass mmer_detail {
+     position 0.49 0.12
+     size 0.49 0.70
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.03 0.03 0.04 0.9
+     {
+      TextWidgetClass mmer_d_name {
+       ignorepointer 1
+       position 0.03 0.02
+       size 0.94 0.07
+       hexactpos 0
+       vexactpos 0
+       hexactsize 0
+       vexactsize 0
+       text "--"
+       color 1 1 1 1
+       "text halign" left
+       "text valign" center
+      }
+      TextWidgetClass mmer_d_state {
+       ignorepointer 1
+       position 0.03 0.09
+       size 0.94 0.05
+       hexactpos 0
+       vexactpos 0
+       hexactsize 0
+       vexactsize 0
+       text ""
+       color 0.88 0.29 0.29 1
+       "text halign" left
+       "text valign" center
+      }
+      TextWidgetClass mmer_d_grid {
+       ignorepointer 1
+       position 0.03 0.15
+       size 0.94 0.05
+       hexactpos 0
+       vexactpos 0
+       hexactsize 0
+       vexactsize 0
+       text ""
+       color 0.75 0.75 0.75 1
+       "text halign" left
+       "text valign" center
+      }
+      TextWidgetClass mmer_d_range {
+       ignorepointer 1
+       position 0.03 0.20
+       size 0.94 0.05
+       hexactpos 0
+       vexactpos 0
+       hexactsize 0
+       vexactsize 0
+       text ""
+       color 0.75 0.75 0.75 1
+       "text halign" left
+       "text valign" center
+      }
+      TextWidgetClass mmer_d_elapsed {
+       ignorepointer 1
+       position 0.03 0.25
+       size 0.45 0.05
+       hexactpos 0
+       vexactpos 0
+       hexactsize 0
+       vexactsize 0
+       text ""
+       color 0.6 0.6 0.6 1
+       "text halign" left
+       "text valign" center
+      }
+      TextWidgetClass mmer_d_medic {
+       ignorepointer 1
+       position 0.49 0.25
+       size 0.48 0.05
+       hexactpos 0
+       vexactpos 0
+       hexactsize 0
+       vexactsize 0
+       text ""
+       color 0.6 0.6 0.6 1
+       "text halign" left
+       "text valign" center
+      }
+      TextWidgetClass mmer_d_note {
+       ignorepointer 1
+       position 0.03 0.30
+       size 0.94 0.05
+       hexactpos 0
+       vexactpos 0
+       hexactsize 0
+       vexactsize 0
+       text ""
+       color 0.5 0.5 0.5 1
+       "text halign" left
+       "text valign" center
+      }
+      ScrollWidgetClass mmer_diag_scroll {
+       position 0.03 0.36
+       size 0.94 0.61
+       hexactpos 0
+       vexactpos 0
+       hexactsize 0
+       vexactsize 0
+       "Scrollbar V" 1
+       {
+        WrapSpacerWidgetClass mmer_diag_list {
+         position 0 0
+         size 1 0
+         hexactpos 0
+         vexactpos 0
+         hexactsize 0
+         "Size To Content V" 1
+        }
+       }
+      }
+     }
+    }
+
+    ButtonWidgetClass mmer_btn_accept {
+     text "ACCEPT"
+     position 0.02 0.84
+     size 0.15 0.055
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.18 0.49 0.31 1
+    }
+    ButtonWidgetClass mmer_btn_complete {
+     text "COMPLETE"
+     position 0.185 0.84
+     size 0.15 0.055
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.19 0.35 0.48 1
+    }
+    ButtonWidgetClass mmer_btn_abandon {
+     text "RELEASE"
+     position 0.35 0.84
+     size 0.15 0.055
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.42 0.29 0.13 1
+    }
+    ButtonWidgetClass mmer_btn_mark {
+     text "RE-MARK"
+     position 0.515 0.84
+     size 0.15 0.055
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.23 0.23 0.27 1
+    }
+    ButtonWidgetClass mmer_btn_archive {
+     text "ARCHIVE"
+     position 0.68 0.84
+     size 0.15 0.055
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.23 0.23 0.27 1
+    }
+    ButtonWidgetClass mmer_btn_admin {
+     text "ROSTER"
+     position 0.515 0.905
+     size 0.15 0.055
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.33 0.20 0.29 1
+    }
+    ButtonWidgetClass mmer_btn_close {
+     text "CLOSE"
+     position 0.68 0.905
+     size 0.15 0.055
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.35 0.16 0.16 1
+    }
+   }
+  }
+ }
+}

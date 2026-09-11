@@ -1,0 +1,166 @@
+FrameWidgetClass mmer_admin_root {
+ position 0 0
+ size 1 1
+ hexactpos 0
+ vexactpos 0
+ hexactsize 0
+ vexactsize 0
+ {
+  ImageWidgetClass mmer_admin_window {
+   position 0.30 0.14
+   size 0.40 0.72
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   color 0.07 0.07 0.08 0.97
+   {
+    TextWidgetClass mmer_admin_title {
+     ignorepointer 1
+     position 0.04 0.02
+     size 0.92 0.06
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     text "RESPONSE ROSTER"
+     color 0.88 0.29 0.29 1
+     "text halign" left
+     "text valign" center
+    }
+    TextWidgetClass mmer_admin_hint {
+     ignorepointer 1
+     position 0.04 0.08
+     size 0.92 0.04
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     text ""
+     color 0.5 0.5 0.5 1
+     "text halign" left
+     "text valign" center
+    }
+
+    TextWidgetClass mmer_admin_lbl_members {
+     ignorepointer 1
+     position 0.04 0.13
+     size 0.92 0.04
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     text "Responders"
+     color 0.72 0.72 0.72 1
+     "text halign" left
+     "text valign" center
+    }
+    ImageWidgetClass mmer_member_bg {
+     position 0.04 0.17
+     size 0.92 0.30
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.03 0.03 0.04 0.9
+     {
+      ScrollWidgetClass mmer_member_scroll {
+       position 0.01 0.02
+       size 0.98 0.96
+       hexactpos 0
+       vexactpos 0
+       hexactsize 0
+       vexactsize 0
+       "Scrollbar V" 1
+       {
+        WrapSpacerWidgetClass mmer_member_list {
+         position 0 0
+         size 1 0
+         hexactpos 0
+         vexactpos 0
+         hexactsize 0
+         "Size To Content V" 1
+        }
+       }
+      }
+     }
+    }
+
+    TextWidgetClass mmer_admin_lbl_online {
+     ignorepointer 1
+     position 0.04 0.49
+     size 0.92 0.04
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     text "Online players"
+     color 0.72 0.72 0.72 1
+     "text halign" left
+     "text valign" center
+    }
+    ImageWidgetClass mmer_online_bg {
+     position 0.04 0.53
+     size 0.92 0.27
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.03 0.03 0.04 0.9
+     {
+      ScrollWidgetClass mmer_online_scroll {
+       position 0.01 0.02
+       size 0.98 0.96
+       hexactpos 0
+       vexactpos 0
+       hexactsize 0
+       vexactsize 0
+       "Scrollbar V" 1
+       {
+        WrapSpacerWidgetClass mmer_online_list {
+         position 0 0
+         size 1 0
+         hexactpos 0
+         vexactpos 0
+         hexactsize 0
+         "Size To Content V" 1
+        }
+       }
+      }
+     }
+    }
+
+    EditBoxWidgetClass mmer_uid_input {
+     position 0.04 0.84
+     size 0.55 0.06
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.12 0.12 0.15 1
+     text ""
+    }
+    ButtonWidgetClass mmer_btn_add {
+     text "ADD"
+     position 0.61 0.84
+     size 0.16 0.06
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.18 0.49 0.31 1
+    }
+    ButtonWidgetClass mmer_btn_admin_close {
+     text "CLOSE"
+     position 0.79 0.84
+     size 0.17 0.06
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     color 0.35 0.16 0.16 1
+    }
+   }
+  }
+ }
+}

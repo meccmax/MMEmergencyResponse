@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest something the mod should do
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: >
+        Describe the situation on your server, not the solution. "Our medics
+        can't tell which calls are near them" is more useful than "add a
+        distance column".
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+      description: Optional. If you already have a shape in mind, describe it.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Would this need a config option?
+      options:
+        - "Yes — servers will want it on or off"
+        - "No — it should always behave this way"
+        - "Not sure"
+    validations:
+      required: true

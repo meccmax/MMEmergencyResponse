@@ -1,0 +1,86 @@
+ButtonWidgetClass mmer_row {
+ position 0 0
+ size 1 26
+ hexactpos 0
+ vexactpos 0
+ hexactsize 0
+ vexactsize 1
+ color 0.10 0.10 0.12 0.85
+ {
+  ImageWidgetClass mmer_row_stripe {
+   ignorepointer 1
+   position 0 0
+   size 4 26
+   hexactpos 1
+   vexactpos 1
+   hexactsize 1
+   vexactsize 1
+   color 0.88 0.29 0.29 1
+  }
+  TextWidgetClass mmer_row_id {
+   ignorepointer 1
+   position 0.02 0
+   size 0.10 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   text "#0"
+   color 0.55 0.55 0.55 1
+   "text halign" left
+   "text valign" center
+  }
+  TextWidgetClass mmer_row_name {
+   ignorepointer 1
+   position 0.13 0
+   size 0.33 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   text "Survivor"
+   color 0.92 0.92 0.92 1
+   "text halign" left
+   "text valign" center
+  }
+  TextWidgetClass mmer_row_grid {
+   ignorepointer 1
+   position 0.47 0
+   size 0.18 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   text "000 000"
+   color 0.68 0.68 0.68 1
+   "text halign" left
+   "text valign" center
+  }
+  TextWidgetClass mmer_row_state {
+   ignorepointer 1
+   position 0.66 0
+   size 0.22 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   text "NEW"
+   color 0.88 0.29 0.29 1
+   "text halign" left
+   "text valign" center
+  }
+  TextWidgetClass mmer_row_age {
+   ignorepointer 1
+   position 0.88 0
+   size 0.10 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   text "0s"
+   color 0.5 0.5 0.5 1
+   "text halign" right
+   "text valign" center
+  }
+ }
+}
