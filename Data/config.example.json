@@ -50,6 +50,18 @@
     "discordUsername": "MEDEVAC Dispatch",
     "discordTestOnStart": 1,
 
+    "requireCallItem": 0,
+    "callItemTypes": ["Roadflare"],
+    "callItemLabel": "distress beacon",
+    "consumeCallItem": 1,
+    "refundOnExpire": 1,
+    "refundCancelSeconds": 30,
+    "requireItemForResponder": 0,
+    "responderItemTypes": ["PersonalRadio"],
+    "responderItemLabel": "radio",
+    "responderFrequency": 0,
+    "responderRadioMustBeOn": 1,
+
     "chatTagEnabled": 1,
     "chatTagText": "[MEDEVAC]",
     "chatTagColor": "0xFF4BE07A",

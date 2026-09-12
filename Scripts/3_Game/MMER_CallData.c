@@ -37,6 +37,12 @@ class MMER_Call
 	// "recovered" for someone who was unconscious to begin with.
 	int		wasUnconscious	= 0;
 
+	// Class name of the beacon spent to open this call, so it can be handed back
+	// if nobody ever answers. Server-side bookkeeping: Slim() does not copy it,
+	// so it never reaches a client, but SaveActive() writes whole calls, so it
+	// survives a restart mid-case.
+	string	consumedItem	= "";
+
 	// Ref members are built in the constructor rather than inline. Enforce is
 	// inconsistent about member initialisers that allocate, and a constructor
 	// is unambiguous everywhere.

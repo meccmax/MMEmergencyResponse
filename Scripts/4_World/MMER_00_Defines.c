@@ -11,8 +11,11 @@
 //------------------------------------------------------------------------------
 
 // Enables the Terje Medicine diagnostics rows.
-// Requires: TerjeCore, TerjeMedicine
-// #define MMER_TERJE
+// Requires: TerjeCore, TerjeMedicine (both listed in requiredAddons in
+// config.cpp). On the Steam Workshop build this is ON. Comment it out and
+// remove those two entries from requiredAddons to build without Terje - the
+// terje: rows then read "--" and nothing else changes.
+#define MMER_TERJE
 
 // Enables DayZ Expansion server markers (markerMode 2).
 // Requires: DayZ-Expansion-Core (and CF, which Expansion already pulls in)

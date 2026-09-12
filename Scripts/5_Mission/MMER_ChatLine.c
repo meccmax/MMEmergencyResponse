@@ -1,13 +1,16 @@
 //------------------------------------------------------------------------------
-// MM Emergency Response - chat tags.
+// MM Emergency Response - chat tags on a VANILLA chat renderer.
 //
-// Draws "[MEDEVAC] Name :" instead of "Name :" for players who are on the
-// response roster. Purely cosmetic and purely client-side: the tag grants
-// nothing and is checked nowhere. Chat carries a display name and no Steam64
-// (see ChatMessageEventParams in 3_Game/gameplay.c - param2 is the sender's
-// name), so this is a name match by necessity. A player who renames themselves
-// to match a responder gets the tag too; that is a display quirk, not an
-// access path, because nothing in this mod trusts a name.
+// Draws "[MEDEVAC] Name :" instead of "Name :" for players on the response
+// roster. Purely cosmetic and purely client-side: the tag grants nothing and
+// is checked nowhere.
+//
+// IMPORTANT: this hook only fires where vanilla is actually drawing the chat.
+// A mod that replaces the chat renderer - DayZ Expansion Chat above all, which
+// draws "HH:MM [Channel] Name: text" from its own class - never instantiates
+// vanilla's ChatLine, so nothing here runs and no tag appears. That case is
+// handled by MMER_ExpansionChatLine.c, behind MMER_EXPANSION_CHAT. Enabling
+// both is fine; only one of the two classes is ever live on a given server.
 //
 // The name text is rebuilt rather than read back and prefixed: TextWidget has
 // no GetText() in the engine API, only SetText().
@@ -40,26 +43,10 @@ modded class ChatLine
 		if (channel & CCBattlEye)
 			return;
 
-		MMER_ClientState state = MMER_ClientState.Get();
-		MMER_ClientSettings cfg = state.GetSettings();
+		string tag;
+		int colour;
 
-		if (cfg.chatTagEnabled == 0)
-			return;
-
-		int role = state.TagRoleFor(sender);
-		if (role == MMER_Role.NONE)
-			return;
-
-		string tag = cfg.chatTagText;
-		string colour = cfg.chatTagColor;
-
-		if (role == MMER_Role.ADMIN)
-		{
-			tag = cfg.chatTagAdminText;
-			colour = cfg.chatTagAdminColor;
-		}
-
-		if (tag == "")
+		if (!MMER_ChatTag.Lookup(sender, tag, colour))
 			return;
 
 		// Rebuild exactly what vanilla writes for this channel, with the tag in
@@ -71,6 +58,6 @@ modded class ChatLine
 			line = tag + " " + sender + " : ";
 
 		m_NameWidget.SetText(line);
-		m_NameWidget.SetColor(MMER_Color.Parse(colour, 0xFFFFFFFF));
+		m_NameWidget.SetColor(colour);
 	}
 }

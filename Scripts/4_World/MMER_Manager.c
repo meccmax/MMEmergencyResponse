@@ -61,6 +61,75 @@ class MMER_Manager
 
 		MMER_Log.Info(string.Format("Dispatch online. %1 call(s) restored, next id %2, marker mode %3.",
 			m_Calls.Count(), m_NextId, m_Settings.markerMode));
+
+		LogGateSummary();
+	}
+
+	// Says plainly, at boot, which optional gates are actually live and on what.
+	// "Is the feature even switched on" is invisible state, and invisible state
+	// is what has cost the most time on this mod - a config key sitting at 0 and
+	// a genuine bug look identical from in-game.
+	protected void LogGateSummary()
+	{
+		string callGate = "OFF";
+		if (m_Settings.requireCallItem == 1)
+		{
+			string spend = "kept";
+			if (m_Settings.consumeCallItem == 1)
+				spend = "consumed";
+
+			callGate = string.Format("ON (%1, %2, refund on expire=%3, cancel within %4s)",
+				JoinTypes(m_Settings.callItemTypes), spend,
+				m_Settings.refundOnExpire, m_Settings.refundCancelSeconds);
+		}
+
+		string medicGate = "OFF";
+		if (m_Settings.requireItemForResponder == 1)
+		{
+			string freq = "any frequency";
+			if (m_Settings.responderFrequency > 0)
+				freq = m_Settings.responderFrequency.ToString() + " MHz";
+
+			string powered = "power not checked";
+			if (m_Settings.responderRadioMustBeOn == 1)
+				powered = "must be powered on";
+
+			medicGate = string.Format("ON (%1, %2, %3)",
+				JoinTypes(m_Settings.responderItemTypes), freq, powered);
+		}
+
+		string tagGate = "OFF";
+		if (m_Settings.chatTagEnabled == 1)
+			tagGate = string.Format("ON (%1 / %2)", m_Settings.chatTagText, m_Settings.chatTagAdminText);
+
+		// Same reasoning as the gates: a terje: row reading "--" could mean the
+		// build flag is off, the setting is off, or the id is wrong, and all
+		// three look identical from the K panel. Say which one it is here.
+		string terjeGate = "OFF (built without MMER_TERJE - terje: rows read '--')";
+		if (MMER_TerjeAdapter.IsAvailable())
+		{
+			if (m_Settings.terjeEnabled == 1)
+				terjeGate = "ON";
+			else
+				terjeGate = "OFF (terjeEnabled is 0 in config.json)";
+		}
+
+		MMER_Log.Info("Patient beacon gate: " + callGate);
+		MMER_Log.Info("Responder radio gate: " + medicGate);
+		MMER_Log.Info("Chat tags: " + tagGate);
+		MMER_Log.Info("Terje diagnostics: " + terjeGate);
+	}
+
+	protected string JoinTypes(TStringArray types)
+	{
+		if (!types || types.Count() == 0)
+			return "NO TYPES CONFIGURED - nothing will ever satisfy this";
+
+		string joined = types.Get(0);
+		for (int i = 1; i < types.Count(); i++)
+			joined = joined + ", " + types.Get(i);
+
+		return joined;
 	}
 
 	MMER_Settings GetSettings()
@@ -230,6 +299,20 @@ class MMER_Manager
 			return;
 		}
 
+		// Checked before the call is created, spent after. Consuming first and
+		// then hitting a later refusal would take the beacon and give nothing.
+		EntityAI beacon;
+		if (m_Settings.requireCallItem == 1)
+		{
+			beacon = MMER_Items.FindFirst(player, m_Settings.callItemTypes);
+			if (!beacon)
+			{
+				SendToast(player, MMER_Toast.ERROR, "No beacon",
+					string.Format("You need a %1 to call for help.", m_Settings.callItemLabel), 0);
+				return;
+			}
+		}
+
 		MMER_Call call		= new MMER_Call;
 		call.id				= m_NextId++;
 		call.state			= MMER_CallState.NEW;
@@ -237,6 +320,18 @@ class MMER_Manager
 		call.patientName	= name;
 		call.createdAt		= now;
 		call.SetPosition(player.GetPosition());
+
+		if (beacon && m_Settings.consumeCallItem == 1)
+		{
+			// Recorded before the delete: GetType() on a deleted entity is not
+			// something to rely on, and without the class name there is nothing
+			// to refund later.
+			call.consumedItem = beacon.GetType();
+			MMER_Items.ConsumeOne(beacon);
+
+			MMER_Log.Info(string.Format("Call #%1 consumed one %2 from %3.",
+				call.id, call.consumedItem, MMER_Webhook.SafeName(name)));
+		}
 
 		if (player.IsUnconscious())
 			call.wasUnconscious = 1;
@@ -283,6 +378,12 @@ class MMER_Manager
 		if (!call)
 			return;
 
+		// A misclick should not cost anything. Past the window it is a real
+		// decision the player made and reversed, and that one stands.
+		int openFor = MMER_Time.NowUnix() - call.createdAt;
+		if (m_Settings.refundCancelSeconds > 0 && openFor <= m_Settings.refundCancelSeconds)
+			RefundCallItem(call, "Call cancelled - your beacon was returned.");
+
 		CloseCall(call, MMER_CallState.CANCELLED, "Cancelled by patient");
 		SendState(player);
 		BroadcastCallList();
@@ -305,6 +406,29 @@ class MMER_Manager
 		{
 			SendToast(medic, MMER_Toast.ERROR, "Unavailable", "That call is no longer open.", 0);
 			return;
+		}
+
+		// Symmetric gate, off by default. A responder's radio is a CARRY
+		// requirement, never consumed - they pay in kit, the patient pays in
+		// stock. Charging the person volunteering to run across the map would
+		// tax exactly the behaviour this mod exists to encourage.
+		//
+		// The refusal always says what is actually wrong - missing, off, or
+		// tuned to the wrong frequency, naming both frequencies. A responder is
+		// conscious and can fix it in seconds; refusing silently is what would
+		// make this feel broken.
+		if (m_Settings.requireItemForResponder == 1)
+		{
+			string radioProblem;
+			bool radioOk = MMER_Items.HasTunedRadio(medic, m_Settings.responderItemTypes,
+				m_Settings.responderFrequency, m_Settings.responderRadioMustBeOn == 1,
+				m_Settings.responderItemLabel, radioProblem);
+
+			if (!radioOk)
+			{
+				SendToast(medic, MMER_Toast.ERROR, "Cannot receive", radioProblem, 0);
+				return;
+			}
 		}
 
 		if (CountActiveFor(uid) >= m_Settings.maxActiveCallsPerMedic)
@@ -472,6 +596,11 @@ class MMER_Manager
 		SendRoster(admin);
 		BroadcastTags();
 
+		// Tell the admin it worked. Every failure path above reports, and a
+		// silent success is indistinguishable from a dead button.
+		SendToast(admin, MMER_Toast.PLAIN, "Responder added",
+			string.Format("%1 is now on the roster.", ResolveNameFor(targetUid)), 0);
+
 		PlayerBase added = FindPlayerByUid(targetUid);
 		if (added)
 		{
@@ -522,9 +651,16 @@ class MMER_Manager
 		SendRoster(admin);
 		BroadcastTags();
 
+		SendToast(admin, MMER_Toast.PLAIN, "Responder removed",
+			string.Format("%1 is off the roster.", ResolveNameFor(targetUid)), 0);
+
 		PlayerBase removed = FindPlayerByUid(targetUid);
 		if (removed)
+		{
 			SendState(removed);
+			SendToast(removed, MMER_Toast.PLAIN, m_Settings.teamName,
+				"You have been taken off the response roster.", 0);
+		}
 	}
 
 	void SendRoster(PlayerBase admin)
@@ -791,6 +927,11 @@ class MMER_Manager
 
 			if (call.state == MMER_CallState.NEW && (now - call.createdAt) > limit)
 			{
+				// Nobody ever came. Charging them for that is the single most
+				// frustrating outcome this system can produce.
+				if (m_Settings.refundOnExpire == 1)
+					RefundCallItem(call, "Nobody answered your call - your beacon was returned.");
+
 				CloseCall(call, MMER_CallState.EXPIRED, "No responder available");
 				dirty = true;
 				continue;
@@ -922,6 +1063,39 @@ class MMER_Manager
 
 		if (!selfReported)
 			PostClosureWebhook(call, state, reason);
+	}
+
+	// Hands the beacon back and clears the record so it can never be refunded
+	// twice. Only ever called for outcomes where the patient got nothing for it.
+	protected void RefundCallItem(MMER_Call call, string why)
+	{
+		if (!call || call.consumedItem == "")
+			return;
+
+		string type = call.consumedItem;
+		call.consumedItem = "";
+
+		PlayerBase patient = FindPlayerByUid(call.patientUid);
+		if (!patient || !patient.IsAlive())
+		{
+			// Offline or dead: nothing to give it to, and a dead player lost
+			// everything else anyway. Dropping it in the world where they are
+			// not would just be litter.
+			MMER_Log.Info(string.Format("Call #%1 beacon (%2) not refunded - patient offline or dead.",
+				call.id, type));
+			return;
+		}
+
+		if (MMER_Items.GiveBack(patient, type))
+		{
+			SendToast(patient, MMER_Toast.PLAIN, "Beacon returned", why, 0);
+			// No trailing period in the format: every `why` string already ends
+			// with one, and the log read "...was returned..".
+			MMER_Log.Info(string.Format("Call #%1 beacon (%2) refunded: %3", call.id, type, why));
+			return;
+		}
+
+		MMER_Log.Warn(string.Format("Call #%1 beacon (%2) could not be refunded.", call.id, type));
 	}
 
 	protected void PostClosureWebhook(MMER_Call call, int state, string reason)
@@ -1111,8 +1285,18 @@ class MMER_Manager
 		return call.medicName;
 	}
 
-	// Steam64 ids are 17 digits. Reject anything else outright rather than
-	// writing operator typos or injected junk into config.json.
+	// Best-effort display name for a uid: their in-game name if they are online,
+	// otherwise the uid itself, so a toast about an offline player still says
+	// something useful.
+	protected string ResolveNameFor(string uid)
+	{
+		PlayerBase p = FindPlayerByUid(uid);
+		if (p && p.GetIdentity())
+			return MMER_Webhook.SafeName(p.GetIdentity().GetName());
+
+		return uid;
+	}
+
 	// Matches typed text against the names of players who are online. Exact
 	// match first (case-insensitive), then a unique prefix - an ambiguous
 	// prefix resolves to nothing rather than to the wrong person.
@@ -1459,8 +1643,19 @@ class MMER_Manager
 		if (!FileExist(MMER_Const.ACTIVE_PATH))
 			return;
 
+		// LoadFile, not the deprecated JsonLoadFile: the latter returns void and
+		// leaves its target untouched on a parse error, so a corrupt active.json
+		// was indistinguishable from an empty one and the next SaveActive() wrote
+		// over it. Same class of bug as config.json and archive.json in 1.4.0.
 		MMER_CallListPayload snapshot = new MMER_CallListPayload;
-		JsonFileLoader<MMER_CallListPayload>.JsonLoadFile(MMER_Const.ACTIVE_PATH, snapshot);
+		string err;
+
+		if (!JsonFileLoader<MMER_CallListPayload>.LoadFile(MMER_Const.ACTIVE_PATH, snapshot, err))
+		{
+			MMER_Log.Error("active.json failed to parse: " + err);
+			MMER_Log.Error("Starting with no restored calls. The file has NOT been touched.");
+			return;
+		}
 
 		if (!snapshot || !snapshot.calls)
 			return;

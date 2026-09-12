@@ -1,16 +1,26 @@
 # MM Emergency Response
 
-**Version 1.4.0.** Built on the 1.3.0 build — the first fully verified
-release, with every subsystem tested live and confirmed working end to end —
-plus chat tags, an MIT licence, and the fixes from a full security audit.
-See `CHANGELOG.md` and `SECURITY.md`.
-
-A DayZ MEDEVAC dispatch system. A downed player can call for help, a rostered
-response team gets the call, one of them claims it, works the patient, and
-closes the case. Everything is yours — no whitelist, no IP lock, no phone-home.
+A DayZ MEDEVAC dispatch system. A downed player calls for help, a rostered
+response team gets the call with their grid reference and live vitals, one of
+them claims it, works the patient, and closes the case. Everything is yours —
+no whitelist, no IP lock, no phone-home.
 
 Written for Misfit Mercenaries (Deer Isle and Sakhal), but it has no hard
 dependency on either server's mod list.
+
+---
+
+**Version 1.7.4 — verified in live play.** A review of 42 server runs shows zero
+script errors and zero crashes since 1.5.0, with the full call lifecycle
+observed end to end: beacon consumed, call dispatched, responder accepted under
+a live radio gate, case closed, beacon refunded on cancel. 1.7.4 turns the Terje
+Medicine readout on, against an API read from Terje's own published interfaces
+rather than guessed at.
+
+Highlights since the 1.3.0 GOLD build: chat tags that work under DayZ Expansion,
+optional consumable call beacons, optional responder radios with frequency
+locking, an MIT licence, and the fixes from a full adversarial security audit.
+See `CHANGELOG.md` and `SECURITY.md`.
 
 ---
 
@@ -106,6 +116,17 @@ Fields worth knowing about:
 | `stabilizeMinutesBefore` | `5` | Set `0` to disable the restart sweep entirely. |
 | `discordWebhookUrl` | `""` | Full webhook URL. Empty disables all Discord posts. |
 | `discordOnCancel` | `1` | Report cancelled, expired and self-healed closures too, not just the ones a responder touched. |
+| `requireCallItem` | `0` | Require a beacon in the patient's inventory to call at all. Off by default — turning it on changes who can call, so an upgrade never does it silently. |
+| `callItemTypes` | `["Roadflare"]` | Accepted class names. The first match found anywhere in the inventory (hands, pockets, backpack) is the one spent. |
+| `callItemLabel` | `"distress beacon"` | What the refusal message calls it, e.g. "You need a distress beacon to call for help." |
+| `consumeCallItem` | `1` | Spend it on a call that actually opens. `0` makes it a carry requirement instead. |
+| `refundOnExpire` | `1` | Give it back if the call expires with nobody responding. |
+| `refundCancelSeconds` | `30` | Give it back if the patient cancels within this many seconds. `0` disables the misclick refund. |
+| `requireItemForResponder` | `0` | Responders must carry a working radio to accept a case. Theirs is never consumed. |
+| `responderItemTypes` | `["PersonalRadio"]` | What counts as a responder's radio. |
+| `responderItemLabel` | `"radio"` | What the refusal messages call it. |
+| `responderFrequency` | `0` | MHz the radio must be tuned to, e.g. `91.4`. `0` accepts any frequency. |
+| `responderRadioMustBeOn` | `1` | The radio must be switched on **and** have a live battery. |
 | `chatTagEnabled` | `1` | Draw a tag next to responders' names in chat. `0` turns it off entirely. |
 | `chatTagText` | `"[MEDEVAC]"` | The tag for rostered responders. |
 | `chatTagColor` | `"0xFF4BE07A"` | ARGB, `0x` or `#`, 6 or 8 digits. |
@@ -113,6 +134,79 @@ Fields worth knowing about:
 | `chatTagAdminColor` | `"0xFFE0A94B"` | As above. |
 | `archiveMaxEntries` | `500` | `0` or less falls back to 500 — the archive is rewritten on every closure, so unbounded means an ever-growing write. |
 | `diagnostics` | see below | Drives the readout rows. |
+
+### Checking a gate is actually on
+
+Both item gates ship **off**. On boot the server states what is live:
+
+```
+[MMER][INFO]  Patient beacon gate: OFF
+[MMER][INFO]  Responder radio gate: ON (PersonalRadio, 91.9 MHz, must be powered on)
+[MMER][INFO]  Chat tags: ON ([MEDEVAC] / [MEDEVAC CMD])
+```
+
+Read those three lines in `emergency.log` before concluding anything is broken —
+a key sitting at `0` and a real bug look identical from in-game.
+
+### Call beacons
+
+With `requireCallItem` on, a patient needs one of `callItemTypes` in their
+inventory to call, and it is spent when the call opens. The order matters: the
+check runs *before* the call is created and the item is taken *after*, so a
+refusal further down can never cost someone a beacon for nothing.
+
+It comes back in two cases — the call expired with nobody answering, and the
+patient cancelled inside `refundCancelSeconds`. Both exist because the worst
+outcome this system can produce is a player burning a scarce item and getting no
+rescue, and because a misclick should never cost anything. It does **not** come
+back on a completed case (it did its job) or on death (they lost everything
+anyway). A refund goes to the inventory, or to the ground at their feet if they
+are full, so it cannot silently evaporate.
+
+`Roadflare` is the seeded default because it exists in vanilla and reads as a
+signal. Point `callItemTypes` at your own item whenever you have one — it is a
+list, so you can accept several.
+
+**On consuming:** a genuinely stackable item (one with `canBeSplit` in its
+config, like ammo) loses exactly one unit. Anything else is removed whole. That
+distinction matters because DayZ uses `quantity` for two different things — a
+count on a stack, but a resource on many items, where a Roadflare's quantity is
+its remaining burn time and a canteen's is millilitres. Consuming "one" of a
+flare has to mean the flare, not one second of it.
+
+### Responder radios
+
+`requireItemForResponder` makes the medics carry kit too. Unlike the patient's
+beacon it is never consumed — they pay in inventory space and upkeep, the
+patient pays in stock.
+
+Setting `responderFrequency` to a real value (say `91.4`) means a medic must
+have their radio tuned there to accept a case. This works on the responder side
+precisely because it would not work on the patient's: a responder is conscious,
+can retune in seconds, and is someone you can simply tell the frequency to in
+Discord. An unconscious player can do none of those things.
+
+Every refusal names the actual problem — no radio, radio off or flat, or tuned
+to the wrong frequency **with both frequencies printed**. A mechanic like this
+is demanding when the player can see what's wrong and broken when they can't.
+
+`responderRadioMustBeOn` checks that the radio is genuinely working, not just
+switched on: a radio flicked on with a dead battery is off as far as anyone
+using it is concerned. Carrying several radios is fine — if any one of them
+qualifies, the medic is through.
+
+### Chat tags and Expansion
+
+**`MMER_EXPANSION_CHAT` is on in the shipped build**, because Expansion Chat
+replaces the chat renderer wholesale — it draws its own line and never
+instantiates vanilla's `ChatLine`, so the vanilla hook alone silently does
+nothing and no tag appears. The flag lives in
+`Scripts/5_Mission/MMER_00_MissionDefines.c` and is paired with
+`"DayZExpansion_Chat_Scripts"` in `requiredAddons[]`. On Expansion the tag fills
+Expansion's own `PlayerTag` slot, so the tag and the name share one colour.
+
+Turn the flag off and remove that addon if you do not run Expansion — with it on
+and Expansion absent, the build fails to compile, deliberately.
 
 ### A note on the chat tag
 
@@ -137,7 +231,16 @@ The readout is data-driven. Each row is:
 
 - `vanilla:` ids always resolve: `blood`, `health`, `shock`, `bleeding`,
   `energy`, `water`, `temperature`, `unconscious`, `alive`.
-- `terje:` ids are passed straight through to the Terje stat registry.
+- `terje:` ids are friendly names the adapter translates to Terje's own record
+  ids. Conditions: `sepsis`, `pain`, `influenza`, `zvirus`, `poison`,
+  `biohazard`, `rabies`, `overdose`, `contusion`, `viscera`, `mind`,
+  `sleeping`. Wounds: `hematoma`, `bulletHit`, `stabWound`, `bandagesClean`,
+  `bandagesDirty`, `suturesClean`, `suturesDirty`. Treatments on board:
+  `painkiller`, `antibiotics`, `antisepsis`, `antipoison`, `antibiohazard`,
+  `rabiesCure`, `zAntidot`, `hemostatic`, `bloodRegen`, `salve`, `adrenalin`,
+  `disinfected`. Plus `radiation`, which comes from TerjeRadiation rather than
+  Terje Medicine and reads 0 without it. A raw Terje record id (anything
+  starting `tm.`) passes straight through, so you are not limited to the list.
 - `warnAbove` / `warnBelow` turn the value amber; `-1` disables that side.
 - An id that doesn't resolve shows `--` in grey rather than vanishing, so a
   typo is visible instead of silent.
@@ -148,30 +251,51 @@ Reorder, relabel, add and remove rows freely — it's JSON, not script.
 
 ## Optional integrations
 
-Both are off by default so the mod compiles and runs standalone. Turn one on by
-uncommenting its `#define` in `Scripts/4_World/MMER_00_Defines.c` **and** adding
-the mod to `requiredAddons[]` in `config.cpp`.
+> **The shipped build is not dependency-free.** `MMER_TERJE` and
+> `MMER_EXPANSION_CHAT` are both on, so it requires Terje Core + Terje Medicine
+> and DayZ Expansion (Chat). Building from this source with the flags off, and
+> `requiredAddons[]` trimmed back to `{"DZ_Data", "DZ_Scripts"}`, gives you a
+> mod with no dependencies at all — the `terje:` rows then read `--` and the
+> chat tag falls back to vanilla chat.
+
+Each flag is paired with its addons, and the pairing is the whole contract: a
+flag on without its addons fails at build time with "unknown type", which is the
+loud failure the flags exist to produce.
+
+| Flag | Defined in | Addons |
+|---|---|---|
+| `MMER_TERJE` | `Scripts/4_World/MMER_00_Defines.c` | `TerjeCore`, `TerjeMedicine` |
+| `MMER_EXPANSION_CHAT` | `Scripts/5_Mission/MMER_00_MissionDefines.c` | `DayZExpansion_Chat_Scripts` |
+| `MMER_EXPANSION` (off) | `Scripts/4_World/MMER_00_Defines.c` | `DayZExpansion_Core` |
 
 ### Terje Medicine — `MMER_TERJE`
 
-All Terje contact is in one function, `MMER_TerjeAdapter.GetStatTerje()`. It
-makes exactly one call:
+All Terje contact is in one file, `MMER_TerjeAdapter.c`, and it depends on
+exactly three facts from
+[TerjeBruoygard/TerjeModsScripting](https://github.com/TerjeBruoygard/TerjeModsScripting):
 
-```c
-stats.GetStatValue(statId, value);
-```
+1. `PlayerBase.GetTerjeStats()` returns a `TerjePlayerStats` — and returns it
+   only on a dedicated server or for the locally controlled player. This mod
+   only ever calls it server-side, which is the case that always resolves.
+2. `TerjePlayerStats` has **no** generic float accessor. Its readings are named
+   records on `TerjePlayerRecordsBase`, read with `TryGetIntValue` /
+   `TryGetFloatValue` / `TryGetBoolValue`, each of which returns `false` for an
+   id that was never registered. That `false` is precisely the "unavailable"
+   signal the panel wants, so an unknown or disabled reading degrades to `--`
+   instead of to a plausible-looking `0`.
+3. Radiation is not a Medicine record. It comes from
+   `PlayerBase.GetTerjeRadiation()`, which Terje Core declares and
+   TerjeRadiation implements; without TerjeRadiation it returns 0.
 
-Check that against
-[TerjeBruoygard/TerjeModsScripting](https://github.com/TerjeBruoygard/TerjeModsScripting)
-for the version you actually run — the older accessor shape is written out
-directly below it, commented, if yours is the earlier one. Because the stat ids
-live in `config.json`, that one line is the only script you should ever need to
-touch for Terje.
+`MMER_TerjeAdapter.MapId()` holds the friendly-name-to-record-id table, so
+adding a reading is one line there — or zero, if you put the raw `tm.` id
+straight into `config.json`.
 
 `MMER_TerjeAdapter.Stabilize()` is where anything Terje-specific belongs in the
-pre-restart sweep (clearing pain, sepsis, etc.). It's stubbed with commented
-examples — deliberately conservative, since the sweep exists to keep people
-alive across a restart, not to heal them.
+pre-restart sweep. It does nothing by default, on purpose: the sweep exists to
+stop people bleeding out through a restart, not to hand out free treatment, and
+silently curing sepsis would undo a responder's work. The real setters are
+written out commented if you disagree.
 
 ### Expansion markers — `MMER_EXPANSION`
 

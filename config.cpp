@@ -5,9 +5,22 @@ class CfgPatches
 		units[] = {};
 		weapons[] = {};
 		requiredVersion = 0.1;
-		// Add "TerjeCore","TerjeMedicine" here when you enable MMER_TERJE.
-		// Add "DayZExpansion_Core" here when you enable MMER_EXPANSION.
-		requiredAddons[] = {"DZ_Data", "DZ_Scripts"};
+		// Every entry here is a hard load-order dependency, and each one is
+		// paired with a build flag. Turning a flag off WITHOUT removing its
+		// addons leaves a dependency the mod no longer needs; turning a flag
+		// on WITHOUT adding them fails at build time with "unknown type",
+		// which is the intended loud failure.
+		//
+		//   TerjeCore, TerjeMedicine  -> MMER_TERJE
+		//                                (Scripts/4_World/MMER_00_Defines.c)
+		//   DayZExpansion_Chat_Scripts -> MMER_EXPANSION_CHAT
+		//                                (Scripts/5_Mission/MMER_00_MissionDefines.c)
+		//   DayZExpansion_Core         -> MMER_EXPANSION (off by default)
+		//
+		// Both flags are ON in the Steam Workshop build. A source build that
+		// wants no dependencies turns both off and trims this list back to
+		// {"DZ_Data", "DZ_Scripts"}.
+		requiredAddons[] = {"DZ_Data", "DZ_Scripts", "TerjeCore", "TerjeMedicine", "DayZExpansion_Chat_Scripts"};
 	};
 };
 
@@ -24,7 +37,7 @@ class CfgMods
 		credits = "Misfit Mercenaries";
 		author = "meccmax";
 		authorID = "0";
-		version = "1.4.0";
+		version = "1.7.4";
 		extra = 0;
 		type = "mod";
 		inputs = "MMEmergencyResponse/Scripts/Data/Inputs.xml";

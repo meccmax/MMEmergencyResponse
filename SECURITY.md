@@ -80,6 +80,27 @@ your admin list and your webhook.
 | Version | Scope | Outcome |
 |---|---|---|
 | 1.4.0 | Full adversarial review of all client→server paths, payload contents, injection surfaces, resource limits and logic flaws | 17 findings; all fixed or documented above |
+| 1.7.3 | Server log review across 42 server runs, and a check that the new item gates hold the same trust boundary | No findings. Zero script errors and zero crashes since 1.5.0 |
+| 1.7.4 | Terje adapter reviewed against Terje's published interfaces before enabling it | One correctness finding, fixed — see below. No new trust-boundary surface |
+
+The 1.7.4 finding was not a security hole but it was the same class of mistake:
+the Terje adapter called a method that does not exist, which would have failed
+at build time rather than silently — but the *reason* it was unverified is that
+it had never been compiled. Enabling a dependency you have not read is guessing,
+and this mod does not guess about APIs. The replacement is documented in
+`MMER_TerjeAdapter.c` with the three facts from Terje's public interfaces that
+it relies on, so the next person to touch it can check them in a minute.
+
+Nothing about the Terje readout crosses a trust boundary the mod did not already
+have: it is read server-side from the patient's own entity, on a call the
+responder was already authorised to make, and the values reach the client in the
+same payload as the vanilla vitals.
+
+The item gates added in 1.6.0 and 1.7.0 follow the same rule as everything else:
+**the server reads the player's real inventory, never a client's claim to hold
+something.** The check runs on the entity the RPC guard already matched to the
+sender, and the item is consumed by the server. A modified client cannot
+fabricate a beacon, cannot skip the gate, and cannot spend someone else's.
 
 The 1.4.0 pass verified as clean: the identity guard on every handler, the
 authorization check on every state change, the absence of the webhook URL and

@@ -5,7 +5,7 @@
 
 class MMER_DiagRow
 {
-	string	id		= "";		// Terje stat id, or one of the MMER_VANILLA_* ids below
+	string	id		= "";		// "vanilla:<name>" or "terje:<name>" - see MMER_Diagnostics
 	string	label	= "";		// what the medic sees
 	string	unit	= "";		// appended to the value, e.g. "%"
 	float	scale	= 1.0;		// value is multiplied by this before display
@@ -77,6 +77,34 @@ class MMER_Settings
 	// responder actually touched.
 	int		discordOnCancel			= 1;
 
+	// Call gating by item. Off by default - turning it on changes who can call
+	// at all, which is not something an upgrade should do silently.
+	//
+	// The beacon is spent on a call that actually opens, and given back if the
+	// call expires with nobody responding or the patient cancels almost
+	// immediately: burning a scarce item and getting no rescue is the most
+	// frustrating outcome the system can produce, and a misclick should never
+	// cost anything.
+	int		requireCallItem			= 0;
+	ref TStringArray callItemTypes;			// accepted class names, first match is spent
+	string	callItemLabel			= "distress beacon";	// what the refusal message calls it
+	int		consumeCallItem			= 1;
+	int		refundOnExpire			= 1;
+	int		refundCancelSeconds		= 30;	// 0 disables the misclick refund
+
+	// Symmetric variant: responders must also carry a radio to accept a case.
+	// Theirs is never consumed - they pay in kit, the patient pays in stock.
+	//
+	// A frequency requirement is reasonable HERE and would not be on the
+	// patient's side: a responder is conscious, can retune on the spot, and is
+	// someone you can simply tell the frequency to. Every refusal says exactly
+	// what is wrong, including which frequency they are actually on.
+	int		requireItemForResponder	= 0;
+	ref TStringArray responderItemTypes;			// e.g. {"PersonalRadio"}
+	string	responderItemLabel		= "radio";
+	float	responderFrequency		= 0;	// 0 = any frequency accepted
+	int		responderRadioMustBeOn	= 1;	// powered and switched on, not just carried
+
 	// Chat tags. Purely cosmetic - the tag is drawn by the client next to the
 	// sender's name and confers nothing. Chat carries a name, not a Steam64, so
 	// a player who renames themselves to match a responder gets the tag too;
@@ -95,7 +123,9 @@ class MMER_Settings
 	int		archivePageSize			= 25;
 
 	// ---- diagnostics -------------------------------------------------------
-	// terjeEnabled only matters if the mod was built with MMER_TERJE defined.
+	// terjeEnabled only matters if the mod was built with MMER_TERJE defined,
+	// which the Steam Workshop build is. Set it to 0 to hide every terje: row
+	// without editing the diagnostics array.
 	int		terjeEnabled			= 1;
 	ref array<ref MMER_DiagRow> diagnostics;
 
@@ -109,10 +139,27 @@ class MMER_Settings
 		teamIds			= new TStringArray;
 		restartTimesUTC	= new TStringArray;
 		diagnostics		= new array<ref MMER_DiagRow>;
+		callItemTypes	= new TStringArray;
+		responderItemTypes = new TStringArray;
 	}
 
 	void ApplyDefaults()
 	{
+		if (!callItemTypes)
+			callItemTypes = new TStringArray;
+
+		// Seeded even when the feature is off, so an operator turning
+		// requireCallItem on has a working example rather than an empty list
+		// that silently refuses every call.
+		if (callItemTypes.Count() == 0)
+			callItemTypes.Insert("Roadflare");
+
+		if (!responderItemTypes)
+			responderItemTypes = new TStringArray;
+
+		if (responderItemTypes.Count() == 0)
+			responderItemTypes.Insert("PersonalRadio");
+
 		if (restartTimesUTC.Count() == 0)
 		{
 			restartTimesUTC.Insert("01:00");
@@ -134,17 +181,26 @@ class MMER_Settings
 			AddDiag("vanilla:water",		"Water",			"",		1.0,	0,	-1,		600);
 			AddDiag("vanilla:temperature",	"Body temp",		"C",	1.0,	1,	38.5,	35.0);
 
-			AddDiag("terje:hemostatic",		"Hemostatic",		"",		1.0,	2,	-1,		-1);
-			AddDiag("terje:antibiotics",	"Antibiotics",		"",		1.0,	2,	-1,		-1);
-			AddDiag("terje:painkiller",		"Painkillers",		"",		1.0,	2,	-1,		-1);
-			AddDiag("terje:pain",			"Pain",				"",		1.0,	2,	0.5,	-1);
-			AddDiag("terje:sepsis",			"Sepsis",			"",		1.0,	2,	0.01,	-1);
-			AddDiag("terje:zvirus",			"Z-Virus",			"",		1.0,	2,	0.01,	-1);
-			AddDiag("terje:influenza",		"Influenza",		"",		1.0,	2,	0.01,	-1);
-			AddDiag("terje:radiation",		"Radiation",		"",		1.0,	2,	0.10,	-1);
-			AddDiag("terje:contusion",		"Contusion",		"",		1.0,	2,	0.01,	-1);
-			AddDiag("terje:hematoma",		"Hematoma",			"",		1.0,	2,	0.01,	-1);
+			// Terje severity readings are 0-3 steps and the wound readings are
+			// counts, so both show best with no decimal places. A warnAbove of
+			// 0.5 means "anything above zero is worth flagging" without
+			// tripping on float noise. Radiation is the exception - it is a
+			// continuous value from TerjeRadiation, not a Medicine record.
+			AddDiag("terje:sepsis",			"Sepsis",			"",		1.0,	0,	0.5,	-1);
+			AddDiag("terje:pain",			"Pain",				"",		1.0,	0,	0.5,	-1);
+			AddDiag("terje:influenza",		"Influenza",		"",		1.0,	0,	0.5,	-1);
+			AddDiag("terje:zvirus",			"Z-Virus",			"",		1.0,	0,	0.5,	-1);
+			AddDiag("terje:contusion",		"Contusion",		"",		1.0,	0,	0.5,	-1);
+			AddDiag("terje:hematoma",		"Hematoma",			"",		1.0,	0,	0.5,	-1);
 			AddDiag("terje:bulletHit",		"Retained round",	"",		1.0,	0,	0.5,	-1);
+			AddDiag("terje:radiation",		"Radiation",		"",		1.0,	2,	0.10,	-1);
+
+			// Treatments already on board. These are not problems, so they are
+			// never flagged - a responder reads them to decide what NOT to
+			// give a second dose of.
+			AddDiag("terje:painkiller",		"Painkillers",		"",		1.0,	0,	-1,		-1);
+			AddDiag("terje:antibiotics",	"Antibiotics",		"",		1.0,	0,	-1,		-1);
+			AddDiag("terje:hemostatic",		"Hemostatic",		"",		1.0,	0,	-1,		-1);
 		}
 	}
 
@@ -301,6 +357,8 @@ class MMER_SettingsLoader
 			if (!s_Settings.teamIds)			s_Settings.teamIds = new TStringArray;
 			if (!s_Settings.restartTimesUTC)	s_Settings.restartTimesUTC = new TStringArray;
 			if (!s_Settings.diagnostics)		s_Settings.diagnostics = new array<ref MMER_DiagRow>;
+			if (!s_Settings.callItemTypes)		s_Settings.callItemTypes = new TStringArray;
+			if (!s_Settings.responderItemTypes)	s_Settings.responderItemTypes = new TStringArray;
 
 			MMER_Log.Info(string.Format("config.json loaded (%1 admins, %2 responders, %3 diagnostic rows)",
 				s_Settings.adminIds.Count(), s_Settings.teamIds.Count(), s_Settings.diagnostics.Count()));
