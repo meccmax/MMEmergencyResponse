@@ -15,12 +15,12 @@ class CfgPatches
 		//                                (Scripts/4_World/MMER_00_Defines.c)
 		//   DayZExpansion_Chat_Scripts -> MMER_EXPANSION_CHAT
 		//                                (Scripts/5_Mission/MMER_00_MissionDefines.c)
-		//   DayZExpansion_Core         -> MMER_EXPANSION (off by default)
+		//   DayZExpansion_Navigation_Scripts -> MMER_EXPANSION (map markers)
 		//
 		// Both flags are ON in the Steam Workshop build. A source build that
 		// wants no dependencies turns both off and trims this list back to
 		// {"DZ_Data", "DZ_Scripts"}.
-		requiredAddons[] = {"DZ_Data", "DZ_Scripts", "TerjeCore", "TerjeMedicine", "DayZExpansion_Chat_Scripts"};
+		requiredAddons[] = {"DZ_Data", "DZ_Scripts", "TerjeCore", "TerjeMedicine", "DayZExpansion_Chat_Scripts", "DayZExpansion_Navigation_Scripts"};
 	};
 };
 
@@ -37,7 +37,7 @@ class CfgMods
 		credits = "Misfit Mercenaries";
 		author = "meccmax";
 		authorID = "0";
-		version = "1.7.4";
+		version = "1.8.3";
 		extra = 0;
 		type = "mod";
 		inputs = "MMEmergencyResponse/Scripts/Data/Inputs.xml";

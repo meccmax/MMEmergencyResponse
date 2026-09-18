@@ -214,6 +214,16 @@ modded class PlayerBase
 			buf.Begin(rpc_type, -1, 0);
 		}
 
+		// Handled here rather than through the sink: the Expansion marker module
+		// lives in 4_World, so this never needs to reach 5_Mission, and keeping
+		// every line of Expansion contact inside MMER_MarkerAdapter is the whole
+		// point of that file.
+		if (rpc_type == MMER_RPC.SERVER_MARKER)
+		{
+			MMER_MarkerAdapter.ApplyClient(payload);
+			return;
+		}
+
 		MMER_ClientSink sink = MMER_ClientSink.Active();
 		if (!sink)
 			return;

@@ -22,6 +22,13 @@ class MMER_Manager
 	protected ref map<string, int>			m_Cooldowns;		// uid -> unix time the cooldown ends
 	protected ref MMER_ClientSettings		m_ClientSettings;
 
+	// uid -> the role we last told that client it had. Only used in the open
+	// roster modes, where membership is transient: it follows a radio in and
+	// out of someone's hands, and the client has to be told when that changes
+	// or the panel stays shut until they relog.
+	protected ref map<string, int>			m_LastRole;
+	protected int							m_LastRoleSweep;
+
 	protected int	m_NextId;
 	protected int	m_LastTick;
 	protected int	m_LastSync;
@@ -41,6 +48,7 @@ class MMER_Manager
 	{
 		m_Calls			= new array<ref MMER_Call>;
 		m_Cooldowns		= new map<string, int>;
+		m_LastRole		= new map<string, int>;
 		m_Archive		= new MMER_ArchiveFile;
 		m_NextId		= 1;
 		m_LastRestartWindow = -1;
@@ -114,6 +122,70 @@ class MMER_Manager
 				terjeGate = "OFF (terjeEnabled is 0 in config.json)";
 		}
 
+		// The most consequential line here. rosterMode is the one setting in
+		// this mod that can widen who sees patient positions, and getting it
+		// wrong is not a broken feature, it is a live feed of downed players.
+		// So it says the mode, what qualifies someone, and - when the mode was
+		// asked for but cannot work - refuses it out loud rather than running
+		// something the operator did not ask for.
+		string rosterGate = MMER_RosterMode.ToLabel(m_Settings.rosterMode);
+
+		if (MMER_RosterMode.IsOpen(m_Settings.rosterMode))
+		{
+			if (!OpenEnrolmentActive())
+			{
+				rosterGate = string.Format(
+					"rosterMode %1 REFUSED - responderItemTypes is empty, so every player would qualify. Running ROSTER ONLY. Add the radio classname to enable it.",
+					m_Settings.rosterMode);
+
+				MMER_Log.Warn("Roster mode: " + rosterGate);
+			}
+			else
+			{
+				// Distinct names from the medic-gate block below. Enforce is
+				// unreliable about scoping locals to a nested block, and a
+				// redeclaration reports on the following line, which sends you
+				// looking at innocent code.
+				string rosterFreq = "any frequency";
+				if (m_Settings.responderFrequency > 0)
+					rosterFreq = m_Settings.responderFrequency.ToString() + " MHz";
+
+				string rosterPowered = "power not checked";
+				if (m_Settings.responderRadioMustBeOn == 1)
+					rosterPowered = "must be powered on";
+
+				rosterGate = string.Format("%1 - qualifying on %2, %3, %4",
+					rosterGate, JoinTypes(m_Settings.responderItemTypes), rosterFreq, rosterPowered);
+			}
+		}
+
+		string markerGate = MMER_MarkerMode.ToLabel(m_Settings.markerMode);
+
+		bool markerNeedsWarning = false;
+
+		if (MMER_MarkerMode.IsExpansion(m_Settings.markerMode) && !MMER_MarkerAdapter.IsAvailable())
+		{
+			markerGate = string.Format(
+				"markerMode %1 REFUSED - built without MMER_EXPANSION. Running COORDS ONLY.",
+				m_Settings.markerMode);
+
+			markerNeedsWarning = true;
+		}
+		else if (m_Settings.markerMode == MMER_MarkerMode.EXPANSION_SERVER)
+		{
+			// Worth a warning rather than an info line. This is the one setting
+			// in the mod that publishes a downed player's exact position to
+			// people who are not helping them.
+			markerNeedsWarning = true;
+		}
+
+		// One line, at the right level. Logging the same sentence twice is how
+		// a summary stops being read.
+		if (markerNeedsWarning)
+			MMER_Log.Warn("Markers: " + markerGate);
+		else
+			MMER_Log.Info("Markers: " + markerGate);
+		MMER_Log.Info("Roster mode: " + rosterGate);
 		MMER_Log.Info("Patient beacon gate: " + callGate);
 		MMER_Log.Info("Responder radio gate: " + medicGate);
 		MMER_Log.Info("Chat tags: " + tagGate);
@@ -166,6 +238,7 @@ class MMER_Manager
 		if (now - m_LastSync >= interval)
 		{
 			m_LastSync = now;
+			SweepRoleChanges();
 			BroadcastCallList();
 		}
 	}
@@ -182,8 +255,13 @@ class MMER_Manager
 		SendSettings(player);
 		SendState(player);
 
-		if (IsResponder(player.GetIdentity().GetPlainId()))
+		m_LastRole.Set(player.GetIdentity().GetPlainId(), EffectiveRoleOf(player));
+
+		if (IsResponder(player))
+		{
 			SendCallList(player);
+			SendOpenMarkersTo(player);
+		}
 
 		// Everyone gets the tag list, not just responders - a plain survivor is
 		// exactly who the tag is there to inform.
@@ -196,6 +274,9 @@ class MMER_Manager
 			return;
 
 		string uid = player.GetIdentity().GetPlainId();
+
+		if (m_LastRole.Contains(uid))
+			m_LastRole.Remove(uid);
 
 		// A responder who logs out mid-intervention releases the call back to
 		// the queue rather than leaving the patient claimed and unattended.
@@ -245,7 +326,8 @@ class MMER_Manager
 		CloseCall(call, MMER_CallState.DECEASED, "Patient died", true);
 
 		NotifyResponders(MMER_Toast.FATAL, "Patient lost",
-			string.Format("Call #%1 - %2 did not survive.", call.id, call.patientName), call.id);
+			string.Format("Call #%1 - %2 did not survive.", call.id, call.patientName), call.id,
+			string.Format("Call #%1 closed - the patient did not survive.", call.id));
 
 		if (m_Settings.discordOnDeath)
 		{
@@ -341,7 +423,7 @@ class MMER_Manager
 		m_Calls.Insert(call);
 		m_Cooldowns.Set(uid, now + m_Settings.callCooldownSeconds);
 
-		MMER_MarkerAdapter.Place(call, m_Settings);
+		PlaceMarker(call);
 
 		// SafeName on the way into the log too: a newline inside a player name
 		// would otherwise let them forge whole log lines, including fake
@@ -354,7 +436,8 @@ class MMER_Manager
 		BroadcastCallList();
 
 		NotifyResponders(MMER_Toast.INCOMING, "Emergency call",
-			string.Format("#%1 - %2 down at grid %3.", call.id, PatientLabel(call), call.GridRef()), call.id);
+			string.Format("#%1 - %2 down at grid %3.", call.id, PatientLabel(call), call.GridRef()), call.id,
+			string.Format("#%1 - a survivor is down. Accept to get the location.", call.id));
 
 		MMER_Log.Info(string.Format("Call #%1 pushed to %2 responder(s) online.",
 			call.id, CountOnlineResponders()));
@@ -398,7 +481,11 @@ class MMER_Manager
 			return;
 
 		string uid = sender.GetPlainId();
-		if (!IsResponder(uid))
+
+		// Player, not uid: in the open roster modes membership is whatever is
+		// in their hands right now, and the radio check below is a separate,
+		// stricter gate the operator may also have switched on.
+		if (!IsResponder(medic))
 			return;
 
 		MMER_Call call = FindCall(callId);
@@ -444,7 +531,7 @@ class MMER_Manager
 		call.acceptedAt	= MMER_Time.NowUnix();
 
 		RefreshDiagnosticsFromWorld(call);
-		MMER_MarkerAdapter.Place(call, m_Settings);
+		PlaceMarker(call);
 
 		MMER_Log.Info(string.Format("Call #%1 accepted by %2 (%3).", call.id, call.medicName, uid));
 
@@ -538,7 +625,7 @@ class MMER_Manager
 		if (!call || !call.IsOpen() || !sender)
 			return;
 
-		if (!IsResponder(sender.GetPlainId()))
+		if (!IsResponder(medic))
 			return;
 
 		PlayerBase patient = FindPlayerByUid(call.patientUid);
@@ -548,7 +635,7 @@ class MMER_Manager
 			RefreshDiagnostics(call, patient);
 		}
 
-		MMER_MarkerAdapter.Place(call, m_Settings);
+		PlaceMarker(call);
 		BroadcastCallList();
 	}
 
@@ -709,9 +796,9 @@ class MMER_Manager
 		// open/append/close cycle per call, filling the volume and starving
 		// every JSON persist. Every other refusal in this file is silent for
 		// the same reason; Debug is suppressed at the default log level.
-		if (!IsResponder(sender.GetPlainId()))
+		if (!IsResponder(medic))
 		{
-			MMER_Log.Debug(string.Format("Archive refused for %1 - not on the roster.", sender.GetPlainId()));
+			MMER_Log.Debug(string.Format("Archive refused for %1 - not a responder.", sender.GetPlainId()));
 			return;
 		}
 
@@ -767,8 +854,12 @@ class MMER_Manager
 		{
 			// Scrubbed per viewer: an archive page used to hand a responder the
 			// Steam64 of every patient in it, hundreds of rows at a time.
+			// The archive is the same leak with a longer memory - a roll of
+			// every player who has ever been downed, where, and how badly. A
+			// need-to-know viewer sees only the cases they worked themselves.
 			payload.calls.Insert(m_Archive.calls.Get(i).ForViewer(
-				sender.GetPlainId(), m_Settings.showPatientNames == 1, false));
+				sender.GetPlainId(), m_Settings.showPatientNames == 1, false,
+				IsNeedToKnowViewer(medic)));
 			count++;
 		}
 
@@ -982,7 +1073,7 @@ class MMER_Manager
 				continue;
 
 			if ((now - call.createdAt) > m_Settings.markerDurationSeconds)
-				MMER_MarkerAdapter.Remove(call, m_Settings);
+				ClearMarker(call);
 		}
 	}
 
@@ -1021,9 +1112,20 @@ class MMER_Manager
 			// Only auto-close a case a responder actually took; an unclaimed
 			// call from someone who woke up on their own just gets cancelled.
 			if (call.state == MMER_CallState.IN_PROGRESS)
+			{
 				CloseCall(call, MMER_CallState.COMPLETED, "Patient regained consciousness");
+			}
 			else
+			{
+				// They spent the beacon, nobody came, and they got themselves
+				// up. Same case as an expiry from the player's side, and the
+				// overlay now promises this in so many words - so it has to
+				// actually happen.
+				if (m_Settings.refundOnSelfRecovery == 1)
+					RefundCallItem(call, "You came round on your own - your beacon was returned.");
+
 				CloseCall(call, MMER_CallState.CANCELLED, "Patient recovered before dispatch");
+			}
 
 			SendState(patient);
 		}
@@ -1043,7 +1145,7 @@ class MMER_Manager
 		call.closedAt	= MMER_Time.NowUnix();
 		call.closeReason = reason;
 
-		MMER_MarkerAdapter.Remove(call, m_Settings);
+		ClearMarker(call);
 
 		MMER_Log.Info(string.Format("Call #%1 closed as %2 (%3).",
 			call.id, MMER_CallState.ToPlain(state), reason));
@@ -1218,15 +1320,295 @@ class MMER_Manager
 		for (int i = 0; i < players.Count(); i++)
 		{
 			PlayerBase p = PlayerBase.Cast(players.Get(i));
-			if (p && p.GetIdentity() && IsResponder(p.GetIdentity().GetPlainId()))
+			if (p && p.GetIdentity() && IsResponder(p))
 				n++;
 		}
 		return n;
 	}
 
-	bool IsResponder(string uid)
+	//==========================================================================
+	// Who is a responder
+	//
+	// Two questions that used to be one. "On the roster" is a durable property
+	// of a Steam64 and is what the chat tag, the roster panel and the admin
+	// menu mean. "Is a responder right now" can also be satisfied by carrying a
+	// qualifying radio, depending on rosterMode, and is what every dispatch
+	// path means. Keeping them apart is the whole of this feature: the tag says
+	// who the server vouches for, the queue says who can help today.
+	//==========================================================================
+
+	// Durable membership. Never radio-dependent.
+	bool IsRostered(string uid)
 	{
 		return GetSettings().IsTeam(uid);
+	}
+
+	// True when rosterMode actually opens enrolment up. An open mode with no
+	// responderItemTypes would qualify EVERY player - MMER_Items.HasTunedRadio
+	// returns true for an empty list, on the reasoning that nothing was asked
+	// for - so an empty list is treated as a misconfiguration and the mode
+	// falls back to roster only. LogGateSummary says so at boot, because a
+	// silently wide-open queue is exactly the failure this feature must not
+	// have.
+	bool OpenEnrolmentActive()
+	{
+		if (!MMER_RosterMode.IsOpen(GetSettings().rosterMode))
+			return false;
+
+		// Split rather than combined into one return: Enforce tests class refs
+		// for truthiness rather than against null, and mixing that with a
+		// comparison in a single expression is the kind of thing it reports on
+		// the following line.
+		if (!m_Settings.responderItemTypes)
+			return false;
+
+		return m_Settings.responderItemTypes.Count() > 0;
+	}
+
+	// The radio that stands in for a roster entry. Same item list, frequency
+	// and power rules as requireItemForResponder, deliberately: an operator who
+	// has already tuned that gate should not have to describe the same radio
+	// twice, and a medic should not have to carry two.
+	bool HasDispatchRadio(PlayerBase player)
+	{
+		if (!player)
+			return false;
+
+		string reason;
+		return MMER_Items.HasTunedRadio(player, m_Settings.responderItemTypes,
+			m_Settings.responderFrequency, m_Settings.responderRadioMustBeOn == 1,
+			m_Settings.responderItemLabel, reason);
+	}
+
+	// The live check every dispatch path uses. Takes the player rather than a
+	// uid because in the open modes the answer depends on what is in their
+	// hands, which a Steam64 cannot tell us.
+	bool IsResponder(PlayerBase player)
+	{
+		if (!player || !player.GetIdentity())
+			return false;
+
+		if (IsRostered(player.GetIdentity().GetPlainId()))
+			return true;
+
+		if (!OpenEnrolmentActive())
+			return false;
+
+		return HasDispatchRadio(player);
+	}
+
+	// A responder who got in on the radio rather than the roster, while
+	// rosterMode is 2. These are the viewers whose payloads get redacted.
+	bool IsNeedToKnowViewer(PlayerBase player)
+	{
+		if (!player || !player.GetIdentity())
+			return false;
+
+		if (m_Settings.rosterMode != MMER_RosterMode.OPEN_REDACTED)
+			return false;
+
+		return !IsRostered(player.GetIdentity().GetPlainId());
+	}
+
+	int EffectiveRoleOf(PlayerBase player)
+	{
+		if (!player || !player.GetIdentity())
+			return MMER_Role.NONE;
+
+		string uid = player.GetIdentity().GetPlainId();
+
+		if (m_Settings.IsAdmin(uid))
+			return MMER_Role.ADMIN;
+
+		if (IsResponder(player))
+			return MMER_Role.MEMBER;
+
+		return MMER_Role.NONE;
+	}
+
+	//==========================================================================
+	// Map markers
+	//
+	// Mode 2 hands the position to the whole server in one call. Mode 3 hands it
+	// to one responder at a time, which is why it lives here rather than in the
+	// adapter: this is the only place that knows who the responders currently
+	// are, and - under rosterMode 2 - which of them have not earned the position
+	// yet. A marker is the position, so sending one to a redacted viewer would
+	// undo that mode completely.
+	//==========================================================================
+
+	void PlaceMarker(MMER_Call call)
+	{
+		if (!call)
+			return;
+
+		// Mode 2 (global) is entirely the adapter's business.
+		MMER_MarkerAdapter.Place(call, m_Settings);
+
+		if (m_Settings.markerMode != MMER_MarkerMode.EXPANSION_RESPONDERS)
+			return;
+
+		MMER_MarkerPayload payload = MMER_MarkerAdapter.BuildPayload(call, m_Settings, false);
+		string json = payload.ToJson();
+		if (json == "")
+			return;
+
+		array<Man> players = new array<Man>;
+		GetGame().GetPlayers(players);
+
+		for (int i = 0; i < players.Count(); i++)
+		{
+			PlayerBase p = PlayerBase.Cast(players.Get(i));
+			if (!p || !p.GetIdentity() || !IsResponder(p))
+				continue;
+
+			if (IsNeedToKnowViewer(p) && !OwnsCall(call, p))
+				continue;
+
+			Send(p, MMER_RPC.SERVER_MARKER, json);
+		}
+	}
+
+	void ClearMarker(MMER_Call call)
+	{
+		if (!call)
+			return;
+
+		MMER_MarkerAdapter.Remove(call, m_Settings);
+
+		if (m_Settings.markerMode != MMER_MarkerMode.EXPANSION_RESPONDERS)
+			return;
+
+		MMER_MarkerPayload payload = MMER_MarkerAdapter.BuildPayload(call, m_Settings, true);
+		string json = payload.ToJson();
+		if (json == "")
+			return;
+
+		// Deliberately NOT filtered by IsResponder: someone who stowed their
+		// radio, or was taken off the roster, still has the pin on their map.
+		// A clear is harmless to a client that never had one, and leaving a
+		// stale marker pointing at a closed case is not.
+		array<Man> players = new array<Man>;
+		GetGame().GetPlayers(players);
+
+		for (int i = 0; i < players.Count(); i++)
+		{
+			PlayerBase p = PlayerBase.Cast(players.Get(i));
+			if (p && p.GetIdentity())
+				Send(p, MMER_RPC.SERVER_MARKER, json);
+		}
+	}
+
+	protected bool OwnsCall(MMER_Call call, PlayerBase player)
+	{
+		if (!call || !player || !player.GetIdentity())
+			return false;
+
+		return call.medicUid != "" && call.medicUid == player.GetIdentity().GetPlainId();
+	}
+
+	// Someone who just came online, or just picked up a radio, has no markers
+	// for cases that were already open. Catch them up.
+	protected void SendOpenMarkersTo(PlayerBase player)
+	{
+		if (!player || m_Settings.markerMode != MMER_MarkerMode.EXPANSION_RESPONDERS)
+			return;
+
+		if (!IsResponder(player))
+			return;
+
+		for (int i = 0; i < m_Calls.Count(); i++)
+		{
+			MMER_Call call = m_Calls.Get(i);
+			if (!call || !call.IsOpen())
+				continue;
+
+			if (IsNeedToKnowViewer(player) && !OwnsCall(call, player))
+				continue;
+
+			MMER_MarkerPayload payload = MMER_MarkerAdapter.BuildPayload(call, m_Settings, false);
+			string json = payload.ToJson();
+			if (json != "")
+				Send(player, MMER_RPC.SERVER_MARKER, json);
+		}
+	}
+
+	// The reverse: they stowed the radio or lost the roster seat, so take the
+	// pins back off their map.
+	protected void ClearAllMarkersFor(PlayerBase player)
+	{
+		if (!player || m_Settings.markerMode != MMER_MarkerMode.EXPANSION_RESPONDERS)
+			return;
+
+		for (int i = 0; i < m_Calls.Count(); i++)
+		{
+			MMER_Call call = m_Calls.Get(i);
+			if (!call)
+				continue;
+
+			MMER_MarkerPayload payload = MMER_MarkerAdapter.BuildPayload(call, m_Settings, true);
+			string json = payload.ToJson();
+			if (json != "")
+				Send(player, MMER_RPC.SERVER_MARKER, json);
+		}
+	}
+
+	// Membership that follows a radio has to be pushed, not polled: the client
+	// decides whether the panel opens at all from the role in its state packet,
+	// so picking up a radio has to reach it or the feature looks broken.
+	//
+	// Runs on the existing sync interval rather than every tick - this walks
+	// each online player's inventory, and once a second per player is a cost
+	// with no matching benefit. Costs nothing at all in roster mode, which is
+	// the default and which never changes role without an admin action that
+	// already pushes state itself.
+	protected void SweepRoleChanges()
+	{
+		if (!MMER_RosterMode.IsOpen(m_Settings.rosterMode))
+			return;
+
+		array<Man> players = new array<Man>;
+		GetGame().GetPlayers(players);
+
+		for (int i = 0; i < players.Count(); i++)
+		{
+			PlayerBase p = PlayerBase.Cast(players.Get(i));
+			if (!p || !p.GetIdentity())
+				continue;
+
+			string uid	= p.GetIdentity().GetPlainId();
+			int role	= EffectiveRoleOf(p);
+
+			int previous = MMER_Role.NONE;
+			bool known = m_LastRole.Find(uid, previous);
+
+			if (known && previous == role)
+				continue;
+
+			m_LastRole.Set(uid, role);
+
+			// Skip the very first observation: OnPlayerConnected has already
+			// sent both of these, and re-sending on the next sweep would just
+			// be noise on every join.
+			if (!known)
+				continue;
+
+			SendState(p);
+
+			if (role >= MMER_Role.MEMBER)
+			{
+				SendCallList(p);
+				SendOpenMarkersTo(p);
+				SendToast(p, MMER_Toast.PLAIN, "Dispatch online",
+					"Your radio puts you on the response net.", 0);
+			}
+			else
+			{
+				ClearAllMarkersFor(p);
+				SendToast(p, MMER_Toast.PLAIN, "Dispatch offline",
+					"Without the radio you are off the response net.", 0);
+			}
+		}
 	}
 
 	bool IsRespawnBlockedFor(string uid)
@@ -1429,7 +1811,11 @@ class MMER_Manager
 
 		MMER_StatePayload state = new MMER_StatePayload;
 		state.myUid = uid;
-		state.role = GetSettings().RoleOf(uid);
+
+		// Not RoleOf(uid) - that only knows the roster. In the open modes the
+		// radio counts, and this packet is what decides whether the panel opens
+		// on the client at all.
+		state.role = EffectiveRoleOf(player);
 
 		int cooldownEnd;
 		if (m_Cooldowns.Find(uid, cooldownEnd) && cooldownEnd > now)
@@ -1463,7 +1849,7 @@ class MMER_Manager
 		if (!player || !player.GetIdentity())
 			return;
 
-		if (!IsResponder(player.GetIdentity().GetPlainId()))
+		if (!IsResponder(player))
 			return;
 
 		MMER_CallListPayload payload = new MMER_CallListPayload;
@@ -1474,6 +1860,7 @@ class MMER_Manager
 
 		string viewer = player.GetIdentity().GetPlainId();
 		bool showNames = (m_Settings.showPatientNames == 1);
+		bool redact = IsNeedToKnowViewer(player);
 
 		for (int i = 0; i < m_Calls.Count() && added < MMER_Const.MAX_SYNC_CALLS; i++)
 		{
@@ -1485,7 +1872,7 @@ class MMER_Manager
 			{
 				// Open cases carry their full diagnostics - that is what the
 				// responder is looking at while deciding whether to go.
-				payload.calls.Insert(c.ForViewer(viewer, showNames, true));
+				payload.calls.Insert(c.ForViewer(viewer, showNames, true, redact));
 				payload.openCount++;
 				added++;
 				continue;
@@ -1497,7 +1884,7 @@ class MMER_Manager
 			if (c.closedAt > 0 && (now - c.closedAt) > 90)
 				continue;
 
-			payload.calls.Insert(c.ForViewer(viewer, showNames, false));
+			payload.calls.Insert(c.ForViewer(viewer, showNames, false, redact));
 			added++;
 		}
 
@@ -1565,9 +1952,15 @@ class MMER_Manager
 			string uid = p.GetIdentity().GetPlainId();
 			string name = p.GetIdentity().GetName();
 
+			// Deliberately IsRostered, not IsResponder. The tag says the
+			// server vouches for this person; it is not a live readout of who
+			// is holding a radio this second. Tying it to the radio would make
+			// it flicker as people stow and draw, and would quietly turn a
+			// recognition marker into a "who is armed with the panel right
+			// now" broadcast.
 			if (m_Settings.IsAdmin(uid))
 				payload.admins.Insert(name);
-			else if (IsResponder(uid))
+			else if (IsRostered(uid))
 				payload.responders.Insert(name);
 		}
 
@@ -1589,7 +1982,7 @@ class MMER_Manager
 		for (int i = 0; i < players.Count(); i++)
 		{
 			PlayerBase p = PlayerBase.Cast(players.Get(i));
-			if (p && p.GetIdentity() && IsResponder(p.GetIdentity().GetPlainId()))
+			if (p && p.GetIdentity() && IsResponder(p))
 				SendCallList(p);
 		}
 	}
@@ -1605,7 +1998,11 @@ class MMER_Manager
 		Send(player, MMER_RPC.SERVER_TOAST, toast.ToJson());
 	}
 
-	void NotifyResponders(int kind, string title, string body, int callId)
+	// redactedBody is what a need-to-know viewer gets instead of body. This
+	// matters more than it looks: the incoming-call toast names the patient and
+	// their grid square, so without this the panel could be fully redacted and
+	// the popup would hand over everything it was hiding.
+	void NotifyResponders(int kind, string title, string body, int callId, string redactedBody = "")
 	{
 		array<Man> players = new array<Man>;
 		GetGame().GetPlayers(players);
@@ -1613,8 +2010,16 @@ class MMER_Manager
 		for (int i = 0; i < players.Count(); i++)
 		{
 			PlayerBase p = PlayerBase.Cast(players.Get(i));
-			if (p && p.GetIdentity() && IsResponder(p.GetIdentity().GetPlainId()))
-				SendToast(p, kind, title, body, callId);
+			if (!p || !p.GetIdentity() || !IsResponder(p))
+				continue;
+
+			if (redactedBody != "" && IsNeedToKnowViewer(p))
+			{
+				SendToast(p, kind, title, redactedBody, callId);
+				continue;
+			}
+
+			SendToast(p, kind, title, body, callId);
 		}
 	}
 

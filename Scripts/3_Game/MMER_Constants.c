@@ -79,12 +79,13 @@ class MMER_RPC
 	static const int SERVER_TOAST			= 87054; // S->C  short message + sound cue
 	static const int SERVER_SETTINGS		= 87055; // S->C  client-relevant settings
 	static const int SERVER_TAGS			= 87056; // S->C  online responder/admin names, for chat tags
+	static const int SERVER_MARKER			= 87057; // S->C  place/clear a personal map marker on this client
 
 	// The range OnRPC accepts. Named rather than written as the first and last
 	// ids: adding SERVER_TAGS past the old literal upper bound would otherwise
 	// have made it fall straight through the guard.
 	static const int FIRST					= 87000;
-	static const int LAST					= 87056;
+	static const int LAST					= 87057;
 }
 
 class MMER_CallState
@@ -149,6 +150,85 @@ class MMER_Role
 	static const int NONE					= 0;
 	static const int MEMBER					= 1;
 	static const int ADMIN					= 2;
+}
+
+//------------------------------------------------------------------------------
+// Who counts as a responder.
+//
+// The roster is not only "who may accept" - it is "who may SEE". The dispatch
+// panel carries every open call's patient name, grid reference and live vitals,
+// so opening it up is a visibility decision before it is an access decision. On
+// a PvP server an unrestricted queue is a live feed of who is helpless and
+// exactly where, which is why ROSTER is the default and why OPEN_REDACTED
+// exists at all.
+//------------------------------------------------------------------------------
+class MMER_RosterMode
+{
+	// Only adminIds and teamIds. The roster is the whitelist.
+	static const int ROSTER					= 0;
+
+	// Anyone carrying a qualifying radio is a responder, with the full panel.
+	// Right for PvE and heavy-RP servers; on a PvP server this is a raid feed.
+	static const int OPEN					= 1;
+
+	// Anyone carrying a qualifying radio is a responder, but a responder who is
+	// not on the roster sees no patient name, no position and no vitals until
+	// they ACCEPT the case - at which point their name is on it and it is in
+	// Discord. They can still see that work exists, which is all they need in
+	// order to volunteer.
+	static const int OPEN_REDACTED			= 2;
+
+	static bool IsOpen(int mode)
+	{
+		return mode == OPEN || mode == OPEN_REDACTED;
+	}
+
+	static string ToLabel(int mode)
+	{
+		if (mode == OPEN)
+			return "OPEN (anyone with a qualifying radio, full detail)";
+		if (mode == OPEN_REDACTED)
+			return "OPEN, need-to-know (anyone with a qualifying radio; non-roster sees no name, position or vitals until they accept)";
+		return "ROSTER ONLY (adminIds + teamIds)";
+	}
+}
+
+//------------------------------------------------------------------------------
+// How a responder is told where the patient is.
+//
+// The important distinction is who ELSE learns the position. A DayZ Expansion
+// SERVER marker is global: every player on the server sees it, which turns a
+// MEDEVAC call into a public announcement that somebody is lying unconscious at
+// a precise grid. That is the same disclosure rosterMode 2 exists to prevent,
+// so it is not the default and the boot log says so out loud.
+//------------------------------------------------------------------------------
+class MMER_MarkerMode
+{
+	// No pin anywhere. The panel's grid, range, bearing and altitude are the
+	// whole locate mechanism. No dependencies. THE DEFAULT.
+	static const int COORDS					= 0;
+
+	// Expansion SERVER marker - global, visible to every player on the server.
+	static const int EXPANSION_SERVER		= 2;
+
+	// Expansion PERSONAL marker, pushed only to players who are responders at
+	// that moment, and never to a redacted viewer under rosterMode 2. Precise,
+	// and it disappears for everyone when the case closes.
+	static const int EXPANSION_RESPONDERS	= 3;
+
+	static bool IsExpansion(int mode)
+	{
+		return mode == EXPANSION_SERVER || mode == EXPANSION_RESPONDERS;
+	}
+
+	static string ToLabel(int mode)
+	{
+		if (mode == EXPANSION_SERVER)
+			return "EXPANSION SERVER MARKER - WARNING: global, every player on the server sees the patient's position";
+		if (mode == EXPANSION_RESPONDERS)
+			return "EXPANSION PERSONAL MARKER - responders only";
+		return "COORDS ONLY (grid, range and bearing in the panel)";
+	}
 }
 
 class MMER_Toast

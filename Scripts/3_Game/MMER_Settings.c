@@ -14,6 +14,71 @@ class MMER_DiagRow
 	float	warnBelow = -1;		// highlight amber when value < this (-1 disables)
 }
 
+//------------------------------------------------------------------------------
+// Every line of the downed-player overlay, as config.
+//
+// EMPTY MEANS "USE THE BUILT-IN". That is the whole design of this block: an
+// existing config.json has none of these keys, reads them as "", and behaves
+// exactly as it did before. An operator overrides the one line they care about
+// and leaves the other twenty-seven alone, rather than being handed a wall of
+// text to maintain.
+//
+// Tokens, substituted at display time:
+//
+//   {beacon}   callItemLabel, e.g. "distress beacon"
+//   {medic}    the responder's name, or "A responder" before one is assigned
+//   {cooldown} time left on the call cooldown, e.g. "4m 12s"
+//   {hold}     how long respawn stays held, e.g. "15 min"
+//   {cancel}   the quick-cancel refund window, e.g. "30s"
+//   {team}     teamName, e.g. "MEDEVAC"
+//
+// An unknown token is left alone rather than blanked, so a typo shows up on
+// screen as {beacn} instead of silently eating the word.
+//
+// Keep lines under about 55 characters. Longer still works - the overlay wraps
+// and then shrinks to fit rather than clipping - but it will render smaller.
+//------------------------------------------------------------------------------
+class MMER_OverlayText
+{
+	// Heading and the line under it
+	string	title				= "";	// "YOU ARE UNCONSCIOUS"
+	string	titleCallActive		= "";	// shown if they wake with a call still open
+	string	statusDown			= "";
+	string	statusQueued		= "";
+	string	statusEnroute		= "";	// "Responder en route: {medic}"
+	string	statusCooldown		= "";	// "You can call again in {cooldown}"
+	string	statusUnavailable	= "";
+
+	// Button captions
+	string	btnCall				= "";
+	string	btnCancel			= "";
+	string	btnCooldown			= "";
+
+	// Down, no call yet
+	string	idle1				= "";
+	string	idle2Cost			= "";	// a beacon is required and spent
+	string	idle2Free			= "";	// no beacon required
+	string	idle2Cooldown		= "";
+	string	idle2Unavailable	= "";
+	string	idle3				= "";
+	string	idleHintRefund		= "";	// only shown when a refund really happens
+	string	idleHint			= "";
+
+	// Call out, nobody has taken it
+	string	queued1				= "";
+	string	queued2Refund		= "";
+	string	queued2				= "";
+	string	queued3				= "";
+	string	queuedHint			= "";
+
+	// A responder is on the way
+	string	enroute1			= "";
+	string	enroute2Held		= "";	// respawn is locked
+	string	enroute2Free		= "";	// respawn is not locked
+	string	enroute3			= "";
+	string	enrouteHint			= "";
+}
+
 class MMER_Settings
 {
 	// ---- general -----------------------------------------------------------
@@ -26,6 +91,17 @@ class MMER_Settings
 	// ---- access ------------------------------------------------------------
 	ref TStringArray adminIds;		// Steam64 - full control
 	ref TStringArray teamIds;		// Steam64 - responders
+
+	// 0 roster only (default), 1 open to anyone with a qualifying radio,
+	// 2 open but a non-roster responder sees no patient name, position or
+	// vitals until they accept the case. See MMER_RosterMode.
+	//
+	// In modes 1 and 2 the radio IS the licence, so responderItemTypes must be
+	// populated - an empty list means nobody can qualify by radio and the mode
+	// falls back to roster only, loudly, at boot. Whether the radio also has to
+	// be tuned and powered follows responderFrequency and
+	// responderRadioMustBeOn, exactly as it does for requireItemForResponder.
+	int		rosterMode				= 0;
 
 	// ---- patient side ------------------------------------------------------
 	int		requireUnconscious		= 1;					// 0 lets any player call
@@ -42,11 +118,28 @@ class MMER_Settings
 	int		refreshIntervalSeconds	= 5;
 
 	// ---- markers -----------------------------------------------------------
-	// 0 = grid/range/bearing only (no dependencies), 2 = DayZ Expansion marker
+	// 0 = grid/range/bearing in the panel only, no dependencies. THE DEFAULT.
+	// 2 = DayZ Expansion SERVER marker. GLOBAL - every player on the server sees
+	//     the patient's exact position. Kept for PvE and RP servers that want a
+	//     public call; on a PvP server this is a broadcast of who is helpless
+	//     and where.
+	// 3 = DayZ Expansion PERSONAL marker, pushed to each responder individually
+	//     and to nobody else. Precise, private, cleared when the case closes.
+	//     Never sent to a redacted viewer under rosterMode 2 - that would hand
+	//     back the exact thing that mode withholds.
+	//
+	// Modes 2 and 3 need the MMER_EXPANSION build flag and
+	// DayZExpansion_Navigation_Scripts in requiredAddons. Without the flag they
+	// log once and fall back to mode 0 rather than failing.
 	int		markerMode				= 0;
 	int		markerDurationSeconds	= 900;
 	string	markerIcon				= "Medic";
 	string	markerColor				= "0xFFE04B4B";
+
+	// Draw the marker in the world as well as on the map. Off by default: a 3D
+	// pin floating over a downed player is visible to anyone looking that way,
+	// which quietly undoes the point of mode 3.
+	int		marker3D				= 0;
 
 	// ---- respawn control ---------------------------------------------------
 	int		blockRespawnDuringCall	= 1;
@@ -92,6 +185,16 @@ class MMER_Settings
 	int		refundOnExpire			= 1;
 	int		refundCancelSeconds		= 30;	// 0 disables the misclick refund
 
+	// Give the beacon back when the patient comes round on their own before
+	// any responder took the case. Same principle as refundOnExpire: they
+	// spent it, nobody came, they saved themselves. Charging for that is the
+	// outcome most likely to stop someone ever calling again.
+	//
+	// Only applies to an UNCLAIMED call. Once a responder has accepted, someone
+	// is running across the map for you and the beacon is spent whatever
+	// happens next.
+	int		refundOnSelfRecovery	= 1;
+
 	// Symmetric variant: responders must also carry a radio to accept a case.
 	// Theirs is never consumed - they pay in kit, the patient pays in stock.
 	//
@@ -122,6 +225,11 @@ class MMER_Settings
 	int		archiveMaxEntries		= 500;
 	int		archivePageSize			= 25;
 
+	// ---- overlay wording ---------------------------------------------------
+	// Every field empty by default; each empty field falls back to the built-in
+	// line. See MMER_OverlayText for the token list.
+	ref MMER_OverlayText overlayText;
+
 	// ---- diagnostics -------------------------------------------------------
 	// terjeEnabled only matters if the mod was built with MMER_TERJE defined,
 	// which the Steam Workshop build is. Set it to 0 to hide every terje: row
@@ -141,6 +249,7 @@ class MMER_Settings
 		diagnostics		= new array<ref MMER_DiagRow>;
 		callItemTypes	= new TStringArray;
 		responderItemTypes = new TStringArray;
+		overlayText		= new MMER_OverlayText;
 	}
 
 	void ApplyDefaults()
@@ -263,6 +372,34 @@ class MMER_ClientSettings
 	string	chatTagAdminText	= "[MEDEVAC CMD]";
 	string	chatTagAdminColor	= "0xFFE0A94B";
 
+	// The beacon rules, so the downed-player overlay can explain what pressing
+	// the button will actually cost and when it comes back. These are rules the
+	// player is subject to, not operator secrets - the alternative is the
+	// overlay guessing, and copy that promises a refund the server does not give
+	// is worse than no copy at all.
+	int		requireCallItem		= 0;
+	string	callItemLabel		= "distress beacon";
+	int		consumeCallItem		= 1;
+	int		refundOnExpire		= 1;
+	int		refundOnSelfRecovery = 1;
+	int		refundCancelSeconds	= 30;
+	int		respawnBlockMaxSeconds = 900;
+
+	// The operator's overlay wording, verbatim. Mostly empty strings on a
+	// default server, which cost about 25 bytes each on the wire - the settings
+	// payload is chunked like every other, so this is well inside what Send()
+	// handles.
+	ref MMER_OverlayText overlayText;
+
+	// Ref member built in a constructor rather than inline, same reason as
+	// everywhere else in this file. FromJson() relies on it: a config with no
+	// overlayText key leaves this as the constructed empty object rather than
+	// null, so the client never has to null-check it.
+	void MMER_ClientSettings()
+	{
+		overlayText = new MMER_OverlayText;
+	}
+
 	void FromSettings(MMER_Settings s)
 	{
 		teamName			= s.teamName;
@@ -281,6 +418,16 @@ class MMER_ClientSettings
 		chatTagColor		= s.chatTagColor;
 		chatTagAdminText	= s.chatTagAdminText;
 		chatTagAdminColor	= s.chatTagAdminColor;
+		requireCallItem		= s.requireCallItem;
+		callItemLabel		= s.callItemLabel;
+		consumeCallItem		= s.consumeCallItem;
+		refundOnExpire		= s.refundOnExpire;
+		refundOnSelfRecovery = s.refundOnSelfRecovery;
+		refundCancelSeconds	= s.refundCancelSeconds;
+		respawnBlockMaxSeconds = s.respawnBlockMaxSeconds;
+
+		if (s.overlayText)
+			overlayText = s.overlayText;
 	}
 	string ToJson()
 	{
