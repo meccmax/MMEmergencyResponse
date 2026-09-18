@@ -2,6 +2,275 @@
 
 ---
 
+## 1.8.3 — 2026-09-18
+
+### Added
+
+- **The whole downed-player overlay is now config.** 28 keys under
+  `overlayText` in `config.json` — title, status line, three button captions,
+  and every option and hint line in all four states.
+
+  **An empty string means "use the built-in."** That is the design, not a
+  shortcut: an existing `config.json` has none of these keys, reads them all as
+  empty, and behaves exactly as it did before. Override the one line you care
+  about and the other twenty-seven keep tracking the defaults, including when a
+  later version improves them.
+
+- **Six tokens**: `{beacon}`, `{medic}`, `{cooldown}`, `{hold}`, `{cancel}` and
+  `{team}`. An unknown token is left on screen as typed rather than blanked, so
+  a typo shows up as `{beacn}` instead of quietly eating a word.
+
+  `string.Replace` mutates in place and returns an int — the same trap as
+  `ToLower`, which this mod has been bitten by before. Substitution works on a
+  local copy so the operator's configured string survives to the next frame.
+
+### Changed
+
+- **The built-in status lines now resolve their stringtable key first and then
+  append a token**, rather than being rewritten as literals. Enforce only
+  translates a string that is *entirely* a `#KEY`, so `"#KEY {medic}"` would
+  resolve to nothing. Doing it in this order keeps the default wording
+  localisable while still letting the token work.
+
+- **`{hold}` is the duration alone** ("15 min"), not " for up to 15 min". The
+  surrounding words belong to whoever writes the line. It also mirrors the
+  server's own floor of 900 seconds rather than reporting a ceiling the server
+  will not honour.
+
+- **The en-route hint only appears when a beacon was genuinely spent.** It read
+  "Your beacon is spent" on servers with no beacon requirement at all.
+
+### Note
+
+Which *variant* of a line appears is still decided by the server's real
+settings, never by which keys you filled in. `idle2Cost` shows only when a
+beacon is both required and consumed; the refund lines only when a refund
+actually happens. Writing a refund line on a server that does not refund does
+not conjure one — same rule as 1.8.1.
+
+---
+## 1.8.2 — 2026-09-18
+
+### Fixed
+
+- **The overlay text was cut off.** DayZ text does **not** shrink to fit its
+  widget — it **clips**, which 1.8.1 assumed the opposite of. That is why the
+  panel showed "your distr" and lost the rest off the right edge.
+
+  Three changes, because one alone would not be safe:
+  - The layout now pins a size with `"exact text" 1` + `"exact text size"`
+    rather than letting the engine derive it from the box height. A panel that
+    gets scaled no longer scales its font out of range.
+  - The option lines, status and hint are `MultilineTextWidgetClass` with
+    `wrap 1`, so a line too long for the width goes to a second line instead of
+    being sliced off.
+  - `FitText()` measures the rendered text with `GetTextSize()` against the
+    widget's real screen size and steps the point size down until it fits, in
+    **both** directions — wrapping turns an overflow from horizontal to
+    vertical, and a clipped second line is no better than a clipped sentence.
+    It bottoms out at 11px rather than looping forever.
+
+  The panel is also wider (0.34 → 0.42) and the copy is shorter. Those help;
+  they are not the fix.
+
+- **An Expansion server marker could never be removed.** `CreateServerMarker`
+  with an empty uid generates its own internally — `name + RandomInt` — and does
+  not hand it back. The adapter stored the *name* and called
+  `RemoveServerMarker(name)`, which never matched anything, so a marker in
+  `markerMode: 2` stayed on every player's map for the rest of the server's
+  uptime. It now passes an explicit uid.
+
+### Added
+
+- **`markerMode: 3` — a precise marker for responders only.**
+
+  The existing mode 2 is an Expansion **server** marker, and those are global:
+  every player on the server sees them. For a MEDEVAC that is a public
+  announcement that somebody is lying helpless at a known grid — the same
+  disclosure `rosterMode: 2` exists to prevent.
+
+  Mode 3 sends a **personal** Expansion marker to each responder individually
+  and to nobody else. It follows the pattern Expansion uses for its own death
+  marker: the server RPCs one client, and that client builds the marker
+  locally. Placed when the call opens, refreshed on re-mark, cleared when the
+  case closes.
+
+  Two rules it obeys:
+  - **Never sent to a redacted viewer** under `rosterMode: 2` unless they have
+    accepted the case. A marker *is* the position, so sending one would undo
+    that mode completely.
+  - **Cleared, not filtered, on the way out.** The clear goes to everyone
+    online, not just current responders — somebody who stowed their radio or
+    left the roster still has the pin, and a stale marker pointing at a closed
+    case is worse than a redundant packet.
+
+  Markers are non-persistent by design. Expansion defaults personal markers to
+  persistent, which would bring a pin back on every login for a case that ended
+  hours ago while the player was offline.
+
+- **`marker3D`** (default `0`). Draws the marker in the world as well as on the
+  map. Off, because a pin floating over a downed player is visible to anyone
+  looking that way, which quietly undoes the point of mode 3.
+
+- **`Markers:` in the boot summary**, as a **warning** rather than an info line
+  when the mode publishes a position globally or when the build cannot honour
+  the mode at all.
+
+### Changed
+
+- **`MMER_EXPANSION` is on**, with `DayZExpansion_Navigation_Scripts` in
+  `requiredAddons[]` — that is the addon holding `ExpansionMarkerModule`, not
+  `DayZExpansion_Core` as the old comment claimed. `markerMode` still defaults
+  to `0`, so the flag compiles the code in and changes nothing else.
+
+---
+## 1.8.1 — 2026-09-13
+
+**The downed-player overlay now says what your options are.**
+
+Players were confused by the unconscious screen, and looking at it that is not
+surprising: it showed a title, a one-line status, and a button. It never said
+that waiting and respawning were also choices, what pressing the button costs,
+or whether you get the beacon back. A player who does not know those things
+reads the whole system as "a button that might do something".
+
+### Added
+
+- **Three numbered options on the overlay**, rewritten per state:
+  - **Down, able to call** — wait / call (naming the cost) / respawn, plus a
+    line saying the beacon comes back if you come round first.
+  - **Call out, unclaimed** — nobody has taken it yet, the self-recovery refund,
+    and that you can still respawn or cancel. The quick-cancel window is quoted
+    by its real value.
+  - **Responder en route** — who has the case, that respawn is held and roughly
+    for how long, and that cancelling is still there.
+  - **On cooldown** — the same three options with the remaining time in place of
+    the cost.
+
+- **Every line is driven by the server's own settings.** `requireCallItem`,
+  `consumeCallItem`, `refundOnExpire`, `refundOnSelfRecovery`,
+  `refundCancelSeconds` and `respawnBlockMaxSeconds` are now in the client
+  settings projection, so the overlay describes the rules *this* server runs.
+  With `consumeCallItem: 0` nothing is spent, so no refund line appears at all.
+  Copy that promises a refund the server does not give is worse than no copy.
+
+- **`refundOnSelfRecovery`** (default `1`). **This behaviour did not previously
+  exist.** A player who spent a beacon, had nobody take the case, and got
+  themselves back up was charged for it. That is the same situation as an
+  expiry from the player's side — they paid, nobody came, they saved
+  themselves — and it is the outcome most likely to stop someone ever calling
+  again. Only applies to an *unclaimed* call: once a responder has accepted,
+  someone is running across the map for you and the beacon is spent whatever
+  happens next.
+
+### Changed
+
+- **"YOU ARE DOWN" → "YOU ARE UNCONSCIOUS"**, and the title switches to
+  "EMERGENCY CALL ACTIVE" when the player is conscious with a call still open.
+  The panel lingers for a moment after someone comes round, and on a
+  `requireUnconscious: 0` server a conscious player can call at all — the old
+  title was wrong in both cases.
+
+- **Status line rewritten** from "Dispatch is listening." to "You cannot move or
+  speak until you come round." The first was atmosphere; the second is the fact
+  a confused player actually needs.
+
+- **`mmer_call_button.layout`** is taller and carries four new text widgets
+  (`mmer_opt1`, `mmer_opt2`, `mmer_opt3`, `mmer_hint`). All four are optional
+  and null-checked, so a server running the old layout against new scripts keeps
+  a working button rather than losing the overlay.
+
+---
+## 1.8.0 — 2026-09-13
+
+**`rosterMode` — the radio can be the licence instead of the roster.**
+
+The ask was "anyone with the radio set is an EMT, no whitelist." The thing worth
+saying out loud before the feature exists: **the roster is not only who may
+accept, it is who may SEE.** The dispatch panel carries every open call's
+patient name, grid reference and live vitals. Opened up without thought, that is
+a live feed of who on the server is helpless and precisely where — which is a
+raid tool, not a medic system. So this ships as three modes, defaulting to the
+one you already have.
+
+### Added
+
+- **`rosterMode: 0` — roster only.** `adminIds` + `teamIds`, exactly as before.
+  The default, and unchanged behaviour for every existing server.
+
+- **`rosterMode: 1` — open.** Anyone carrying a qualifying radio is a responder,
+  with the full panel. Right for PvE and heavy-RP servers.
+
+- **`rosterMode: 2` — open, need-to-know.** Anyone carrying a qualifying radio
+  is a responder, but one who is *not* on the roster sees no patient name, no
+  position and no vitals until they **accept** the case. They can still see that
+  a call exists and how old it is, which is all they need in order to volunteer.
+  Accepting reveals everything — and puts their name on the record and in
+  Discord, so the reveal costs an identity.
+
+  Redaction happens in `ForViewer()`, on the server, before the payload exists.
+  Hiding it at the widget would be no protection at all against a modified
+  client, which is the same rule `showPatientNames` has followed since 1.4.0.
+
+- **The radio is the same radio.** Modes 1 and 2 qualify on `responderItemTypes`
+  / `responderFrequency` / `responderRadioMustBeOn` — the settings
+  `requireItemForResponder` already uses. An operator who has tuned that gate
+  should not describe the same radio twice, and a medic should not carry two.
+
+- **An open mode with an empty `responderItemTypes` is refused at boot.**
+  `HasTunedRadio()` returns true for an empty list, on the reasoning that
+  nothing was asked for — so an empty list in an open mode would qualify *every
+  player on the server*. The mode falls back to roster only and says so as a
+  warning. A silently wide-open queue is the one failure this feature must not
+  have.
+
+- **`Roster mode:` in the boot summary**, naming the mode, what qualifies
+  someone, and the refusal above when it applies.
+
+### Changed
+
+- **`IsResponder()` now takes the player, not the Steam64.** In an open mode
+  membership depends on what is in someone's hands, which a uid cannot answer.
+  The durable question kept its own method, `IsRostered()`.
+
+- **Chat tags stay roster-only, deliberately.** A tag driven by the radio would
+  flicker as people stow and draw, and would quietly turn a recognition marker
+  into a live "who is holding the panel right now" broadcast. The tag says the
+  server vouches for this person; the queue says who can help today.
+
+- **Transient membership is pushed, not polled.** The client decides whether the
+  panel opens from the role in its state packet, so picking up a radio has to
+  reach it. A sweep on the existing sync interval re-derives each online
+  player's role and pushes state, the call list and a toast when it changes. It
+  runs only in the open modes, and on the sync interval rather than every tick,
+  because it walks each player's inventory.
+
+### Fixed
+
+- **The incoming-call toast leaked everything the panel was hiding.** It names
+  the patient and their grid square, and it goes to every responder. Without
+  per-recipient redaction, mode 2 would have withheld the location in the panel
+  and then popped it up unprompted. `NotifyResponders()` now takes a redacted
+  body alongside the full one and picks per recipient. Same for the patient-lost
+  toast.
+
+- **The archive is the same leak with a longer memory** — a roll of every player
+  who has ever been downed, where, and how badly. A need-to-know viewer now sees
+  only the cases they worked themselves.
+
+- **A redacted call renders as withheld, not as zero.** The position is zeroed
+  on the server, so an unguarded client would have drawn a perfectly plausible
+  `000 000` and sent someone to the corner of the map. The payload carries an
+  explicit `redacted` flag and the panel renders placeholders off that.
+
+### Known limitation
+
+In mode 2, a responder can accept a case purely to reveal the position and then
+release it. That is deliberate rather than unsolved: the deterrent is
+attribution, not prevention. Accepting writes their name to the call, the log
+and Discord. A server that needs prevention wants mode 0.
+
+---
 ## 1.7.4 — 2026-09-12
 
 **The Terje Medicine readout is on, and it is built against Terje's published

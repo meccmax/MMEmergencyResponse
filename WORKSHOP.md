@@ -44,10 +44,32 @@ No whitelist. No IP lock. No phone-home. Configure it and it's yours.
     contusion, influenza, Z-virus and radiation. Rows are data-driven: reorder,
     relabel, add and remove them in [b]config.json[/b], no script edit.
 [*] Accept, Complete, Release, Re-mark.
-[*] A paged archive of every closed case.
+[*] A paged archive of every closed case — showing only the cases a given
+    responder is entitled to, not a roll of everyone who has ever been downed.
 [*] [b]Optional:[/b] require a working radio, and optionally one tuned to your
     dispatch frequency, before a medic can take a case.
 [/list]
+
+[h1]Who gets to answer[/h1]
+
+[b]The roster isn't only who may accept — it's who may see.[/b] The panel
+carries every open call's name, grid and vitals, so opening it up is a
+visibility decision first. Three modes, defaulting to the safe one:
+
+[list]
+[*] [b]Roster only[/b] (default) — your admin and medic lists, nobody else.
+[*] [b]Open[/b] — anyone carrying a qualifying radio is a responder, full panel.
+    Built for PvE and RP servers where a public queue is the point.
+[*] [b]Open, need-to-know[/b] — anyone with the radio can answer, but if they're
+    not on your roster they see that a call exists and nothing else. No name, no
+    grid, no vitals. [b]Accepting reveals it[/b] — and puts their name on the
+    record and in your Discord. Strangers can help at 3am; the information still
+    costs something.
+[/list]
+
+The radio is the same one [b]requireItemForResponder[/b] already uses, so you
+configure it once. And an open mode with no radio configured is refused at boot
+rather than quietly qualifying every player on the server.
 
 [h1]For the admin[/h1]
 
