@@ -7,18 +7,18 @@ FrameWidgetClass mmer_root {
  vexactsize 0
  {
   ImageWidgetClass mmer_panel {
-   position 0.34 0.70
-   size 0.32 0.20
+   position 0.29 0.60
+   size 0.42 0.33
    hexactpos 0
    vexactpos 0
    hexactsize 0
    vexactsize 0
-   color 0.06 0.06 0.07 0.88
+   color 0.06 0.06 0.07 0.92
    {
     ImageWidgetClass mmer_logo {
      ignorepointer 1
-     position 0.025 0.06
-     size 0.14 0.28
+     position 0.025 0.04
+     size 0.09 0.12
      hexactpos 0
      vexactpos 0
      hexactsize 0
@@ -28,34 +28,119 @@ FrameWidgetClass mmer_root {
     }
     TextWidgetClass mmer_title {
      ignorepointer 1
-     position 0.19 0.06
-     size 0.78 0.18
+     position 0.13 0.04
+     size 0.85 0.10
      hexactpos 0
      vexactpos 0
      hexactsize 0
      vexactsize 0
-     text "YOU ARE DOWN"
+     text "YOU ARE UNCONSCIOUS"
      color 0.88 0.29 0.29 1
+     font "gui/fonts/etelkatextpro22"
+     "exact text" 1
+     "exact text size" 24
      "text halign" left
      "text valign" center
     }
-    TextWidgetClass mmer_status {
+    MultilineTextWidgetClass mmer_status {
      ignorepointer 1
-     position 0.19 0.26
-     size 0.78 0.16
+     position 0.13 0.145
+     size 0.85 0.09
      hexactpos 0
      vexactpos 0
      hexactsize 0
      vexactsize 0
-     text "Dispatch is listening."
+     text "You cannot move or speak until you come round."
      color 0.72 0.72 0.72 1
+     font "gui/fonts/etelkatextpro22"
+     "exact text" 1
+     "exact text size" 17
      "text halign" left
      "text valign" center
+     wrap 1
+     "condense whitespace" 1
+     "strip newlines" 1
+    }
+    MultilineTextWidgetClass mmer_opt1 {
+     ignorepointer 1
+     position 0.04 0.26
+     size 0.93 0.115
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     text ""
+     color 0.88 0.88 0.88 1
+     font "gui/fonts/etelkatextpro22"
+     "exact text" 1
+     "exact text size" 19
+     "text halign" left
+     "text valign" center
+     wrap 1
+     "condense whitespace" 1
+     "strip newlines" 1
+    }
+    MultilineTextWidgetClass mmer_opt2 {
+     ignorepointer 1
+     position 0.04 0.375
+     size 0.93 0.115
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     text ""
+     color 0.88 0.88 0.88 1
+     font "gui/fonts/etelkatextpro22"
+     "exact text" 1
+     "exact text size" 19
+     "text halign" left
+     "text valign" center
+     wrap 1
+     "condense whitespace" 1
+     "strip newlines" 1
+    }
+    MultilineTextWidgetClass mmer_opt3 {
+     ignorepointer 1
+     position 0.04 0.49
+     size 0.93 0.115
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     text ""
+     color 0.88 0.88 0.88 1
+     font "gui/fonts/etelkatextpro22"
+     "exact text" 1
+     "exact text size" 19
+     "text halign" left
+     "text valign" center
+     wrap 1
+     "condense whitespace" 1
+     "strip newlines" 1
+    }
+    MultilineTextWidgetClass mmer_hint {
+     ignorepointer 1
+     position 0.04 0.605
+     size 0.93 0.095
+     hexactpos 0
+     vexactpos 0
+     hexactsize 0
+     vexactsize 0
+     text ""
+     color 0.58 0.58 0.58 1
+     font "gui/fonts/etelkatextpro22"
+     "exact text" 1
+     "exact text size" 16
+     "text halign" left
+     "text valign" center
+     wrap 1
+     "condense whitespace" 1
+     "strip newlines" 1
     }
     ButtonWidgetClass mmer_call_btn {
      text "CALL FOR HELP"
-     position 0.04 0.52
-     size 0.92 0.36
+     position 0.04 0.73
+     size 0.93 0.20
      hexactpos 0
      vexactpos 0
      hexactsize 0

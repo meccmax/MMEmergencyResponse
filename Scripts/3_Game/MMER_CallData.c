@@ -32,6 +32,14 @@ class MMER_Call
 	string	note			= "";
 	string	closeReason		= "";
 
+	// Set by ForViewer() on the copy that goes to one specific viewer, never on
+	// the server's own record: this viewer is a responder who has not taken the
+	// case and is not on the roster, so the identifying fields below have been
+	// blanked before the payload left the server. The client renders
+	// placeholders off this flag rather than off empty values, so a withheld
+	// grid reads as "withheld" instead of as grid 000 000.
+	int		redacted		= 0;
+
 	// Whether the patient was actually unconscious when the call was made.
 	// Auto-close-on-revive keys off this: regaining consciousness only means
 	// "recovered" for someone who was unconscious to begin with.
@@ -103,6 +111,7 @@ class MMER_Call
 		c.note			= note;
 		c.closeReason	= closeReason;
 		c.wasUnconscious = wasUnconscious;
+		c.redacted		= redacted;
 		return c;
 	}
 
@@ -118,14 +127,42 @@ class MMER_Call
 	// showNames honours the operator's showPatientNames setting HERE rather
 	// than at the widget: enforcing anonymity in the client is no anonymity at
 	// all against a modified one.
-	MMER_Call ForViewer(string viewerUid, bool showNames, bool withDiagnostics)
+	// redact is rosterMode 2: this viewer qualified as a responder by carrying a
+	// radio rather than by being on the roster, and has not taken this case.
+	// Everything that would let them act on the patient without committing to
+	// helping them is removed HERE, on the server, before the payload exists -
+	// not hidden at the widget, which is no protection at all against a
+	// modified client. Taking the case clears it, because then medicUid is
+	// theirs and their name is on the record and in Discord.
+	MMER_Call ForViewer(string viewerUid, bool showNames, bool withDiagnostics, bool redact = false)
 	{
 		MMER_Call c = Slim();
 
 		c.patientUid = "";
 
-		if (medicUid != viewerUid)
+		bool mine = (medicUid != "" && medicUid == viewerUid);
+
+		if (!mine)
 			c.medicUid = "";
+
+		if (redact && !mine)
+		{
+			c.redacted		= 1;
+			c.patientName	= "";
+			c.note			= "";
+
+			// The position is the whole point. Grid, range and bearing are all
+			// derived from it on the client, so zeroing it here removes all
+			// three at once - and the redacted flag is what stops the client
+			// drawing that zero as a real map reference.
+			c.posX = 0;
+			c.posY = 0;
+			c.posZ = 0;
+
+			// No vitals either: "unconscious, bleeding, 800 blood" is itself a
+			// statement about how helpless someone is right now.
+			return c;
+		}
 
 		// The client already falls back to "Survivor" on an empty name.
 		if (!showNames)
@@ -190,6 +227,64 @@ class MMER_CallListPayload
 		return obj;
 	}
 
+}
+
+//------------------------------------------------------------------------------
+// One map marker, for one client.
+//
+// Sent per recipient rather than broadcast, because who may see a patient's
+// exact position is the whole point of the feature. The server decides who gets
+// one; the client only ever draws what it was handed.
+//------------------------------------------------------------------------------
+class MMER_MarkerPayload
+{
+	int		callId	= 0;
+	int		clear	= 0;		// 1 removes the marker for this call
+	float	x		= 0;
+	float	y		= 0;
+	float	z		= 0;
+	string	name	= "";
+	string	icon	= "";
+	int		colour	= 0;
+	int		is3D	= 0;
+
+	vector Position()
+	{
+		return Vector(x, y, z);
+	}
+
+	// Stable per call and per mod, so a re-place updates the existing marker
+	// rather than littering the map with one pin per refresh, and so removal
+	// never has to guess. The MMER_ prefix keeps it clear of any uid Expansion
+	// or another mod generates.
+	string Uid()
+	{
+		return "MMER_" + callId.ToString();
+	}
+
+	string ToJson()
+	{
+		string json;
+		string err;
+		if (!JsonFileLoader<MMER_MarkerPayload>.MakeData(this, json, err, false))
+		{
+			MMER_Log.Warn("MMER_MarkerPayload serialise failed: " + err);
+			return "";
+		}
+		return json;
+	}
+
+	static MMER_MarkerPayload FromJson(string data)
+	{
+		if (data == "")
+			return null;
+
+		MMER_MarkerPayload obj = new MMER_MarkerPayload;
+		string err;
+		if (!JsonFileLoader<MMER_MarkerPayload>.LoadData(data, obj, err))
+			return null;
+		return obj;
+	}
 }
 
 class MMER_StatePayload

@@ -17,6 +17,11 @@
 // terje: rows then read "--" and nothing else changes.
 #define MMER_TERJE
 
-// Enables DayZ Expansion server markers (markerMode 2).
-// Requires: DayZ-Expansion-Core (and CF, which Expansion already pulls in)
-// #define MMER_EXPANSION
+// Enables the DayZ Expansion map markers (markerMode 2 and 3).
+// Requires: DayZExpansion_Navigation_Scripts, which pulls in
+// DayZExpansion_Core_Scripts and Community Framework. Expansion already
+// depends on CF, so a server running Expansion has it.
+//
+// The flag only compiles the code in. markerMode still defaults to 0, so
+// turning this on changes nothing until the operator asks for a marker.
+#define MMER_EXPANSION

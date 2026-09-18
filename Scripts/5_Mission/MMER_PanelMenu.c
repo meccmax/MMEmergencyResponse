@@ -338,7 +338,16 @@ class MMER_PanelMenu extends UIScriptedMenu
 
 		if (id)		id.SetText("#" + call.id.ToString());
 		if (name)	name.SetText(PatientLabel(call, client));
-		if (grid)	grid.SetText(call.GridRef());
+
+		// A redacted call carries a zeroed position, so GridRef() would draw a
+		// perfectly plausible "000 000" and send someone to the map corner.
+		if (grid)
+		{
+			if (call.redacted == 1)
+				grid.SetText("- - -");
+			else
+				grid.SetText(call.GridRef());
+		}
 		if (age)	age.SetText(MMER_Time.Duration(call.AgeSeconds()));
 
 		if (stateTxt)
@@ -359,8 +368,16 @@ class MMER_PanelMenu extends UIScriptedMenu
 
 	protected string PatientLabel(MMER_Call call, MMER_ClientState client)
 	{
+		// Two different silences. showPatientNames off is the operator choosing
+		// anonymity for everyone; redacted is this viewer not having earned the
+		// detail yet, and saying so is the point - it tells them the case is
+		// real and that accepting it is what opens it up.
+		if (call.redacted == 1)
+			return "Unidentified";
+
 		if (client.GetSettings().showPatientNames == 1 && call.patientName != "")
 			return call.patientName;
+
 		return "Survivor";
 	}
 
@@ -442,8 +459,11 @@ class MMER_PanelMenu extends UIScriptedMenu
 		// With markerMode 0 there is no pin anywhere, so this line is the whole
 		// locate mechanism: grid for the map, raw metres for calling it out on
 		// comms or pasting into a map tool.
-		SetText(m_DetailGrid, string.Format("Grid %1  ·  %2 / %3",
-			call.GridRef(), Math.Round(call.posX), Math.Round(call.posZ)));
+		if (call.redacted == 1)
+			SetText(m_DetailGrid, "Location withheld - accept the case to reveal it");
+		else
+			SetText(m_DetailGrid, string.Format("Grid %1  ·  %2 / %3",
+				call.GridRef(), Math.Round(call.posX), Math.Round(call.posZ)));
 
 		SetText(m_DetailElapsed, MMER_Time.Duration(call.AgeSeconds()));
 
@@ -460,6 +480,13 @@ class MMER_PanelMenu extends UIScriptedMenu
 			note = note + call.closeReason;
 		}
 		SetText(m_DetailNote, note);
+
+		if (call.redacted == 1)
+		{
+			SetText(m_DetailRange, "Range and bearing withheld");
+			BuildDiagnostics(call);
+			return;
+		}
 
 		PlayerBase me = PlayerBase.Cast(GetGame().GetPlayer());
 		if (me && m_DetailRange)
@@ -492,7 +519,20 @@ class MMER_PanelMenu extends UIScriptedMenu
 	{
 		ClearDiagnostics();
 
-		if (!m_DiagHolder || !call.diagnostics)
+		if (!m_DiagHolder)
+			return;
+
+		// An empty readout and a withheld one look identical, and "no vitals"
+		// on a patient reads as "nothing wrong". Say which it is.
+		if (call.redacted == 1)
+		{
+			AddDiagRow("Vitals", "withheld", 2);
+			AddDiagRow("", "Accept the case to see them", 2);
+			m_DiagHolder.Update();
+			return;
+		}
+
+		if (!call.diagnostics)
 			return;
 
 		for (int i = 0; i < call.diagnostics.Count(); i++)
@@ -526,6 +566,33 @@ class MMER_PanelMenu extends UIScriptedMenu
 		}
 
 		m_DiagHolder.Update();
+	}
+
+	protected void AddDiagRow(string label, string value, int flag)
+	{
+		Widget row = GetGame().GetWorkspace().CreateWidgets(
+			MMER_Const.LAYOUT_DIR + "mmer_diag_row.layout", m_DiagHolder);
+
+		if (!row)
+			return;
+
+		TextWidget labelWidget = TextWidget.Cast(row.FindAnyWidget("mmer_diag_label"));
+		TextWidget valueWidget = TextWidget.Cast(row.FindAnyWidget("mmer_diag_value"));
+
+		if (labelWidget)
+			labelWidget.SetText(label);
+
+		if (valueWidget)
+		{
+			valueWidget.SetText(value);
+
+			if (flag == 1)
+				valueWidget.SetColor(0xFFE0A94B);
+			else if (flag == 2)
+				valueWidget.SetColor(0xFF6A6A6A);
+			else
+				valueWidget.SetColor(0xFFDDDDDD);
+		}
 	}
 
 	protected void SetText(TextWidget w, string txt)
